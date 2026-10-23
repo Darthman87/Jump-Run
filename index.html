@@ -79,6 +79,9 @@
   .tui #stR { background: rgba(46,196,182,.08); border-color: rgba(46,196,182,.45); }
   .tui #stR .knob { background: rgba(46,196,182,.45); border-color: #2ec4b6; }
   .tui .stick.on .knob { filter: brightness(1.35); }
+  .tui.wide .stick { background: rgba(0,0,0,.12); border-color: rgba(255,255,255,.35); }
+  .tui.wide .btn { background: rgba(255,122,61,.42); }
+  .tui.wide .mini { background: rgba(20,16,34,.4); }
   .tui .btn { position: absolute; border-radius: 50%; pointer-events: auto; touch-action: none; display: grid; place-items: center;
               font: 800 .78rem var(--ui); letter-spacing: .04em; color: #fff; background: rgba(255,122,61,.5); border: 2px solid #ff7a3d;
               box-shadow: 0 4px 14px rgba(0,0,0,.35); -webkit-tap-highlight-color: transparent; }
@@ -142,7 +145,8 @@
   // =====================================================================
   //  GRUNDEINSTELLUNGEN (gleich wie in jump_and_run.py)
   // =====================================================================
-  const W = 800, H = 600, T = 40, ROWS = 15;
+  let W = 800;   // Breite des Spielbilds: 800, auf breiten Handys im Querformat bis 1400 (man sieht mehr von der Welt)
+  const H = 600, T = 40, ROWS = 15;
   const GRAV = 0.75, MAX_FALL = 15, JUMP = -14.5, JUMP2 = -12.5;
   const RUN = 4.6, TURBO_RUN = 6.8, ACC_GROUND = 0.6, ACC_AIR = 0.4, FRICTION = 0.78;
   const COYOTE = 7, BUFFER = 7, MAX_HEARTS = 5;
@@ -492,6 +496,7 @@
   let scene = 'title';        // title, intro, play, dying, gameover, clear, victory
   let sceneT = 0, paused = false, frame = 0, shake = 0, screenMsg = null;
   let levelIndex = 0, L = null, P = null, cam = 0;
+  const camMin = () => (W > 900 ? -Math.round((W - 800) * 0.35) : 0);   // breites Handybild: links vom Level etwas Fels zeigen
   let run = null;             // Werte über alle Level: score, coins, kills, time
   let best = store.get('jr_best', 0);
   let diffK = 1;   // ab Level 20 wird alles schneller (bis 1.6)
@@ -557,7 +562,7 @@
       const cp = L.checkpoints[cpIndex]; L.cpIndex = cpIndex; L.spawn = { x: cp.x, y: cp.y + 60 + T - 38 };
     }
     P = makePlayer(L.spawn.x, L.spawn.y);
-    cam = clamp(P.x - W * 0.4, 0, L.w - W);
+    cam = clamp(P.x - W * 0.4, camMin(), L.w - W);
     if (!keepRun) run = { score: 0, coins: 0, coinsTotal: 0, kills: 0, time: 0, hearts: 3, weapon: L.E.weapons[0], weapons: weaponsForStart(i), weaponEra: L.era,
                           armor: armorForStart(i), friends: friendsForStart(i), bought: {} };
     run.weapons = run.weapons || [run.weapon]; run.bought = run.bought || {};
@@ -1350,7 +1355,7 @@
         if (ch.x > p.x + 6) {   // eingeholt!
           p.hearts--; shake = 12; SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4d6d', 14);
           if (p.hearts <= 0) die();
-          else { p.x = L.spawn.x; p.y = L.spawn.y; p.vx = 0; p.vy = 0; p.inv = 100; p.ride = null; ch.x = L.spawn.x - 360; ch.t = 0; cam = clamp(p.x - W * 0.4, 0, L.w - W); }
+          else { p.x = L.spawn.x; p.y = L.spawn.y; p.vx = 0; p.vy = 0; p.inv = 100; p.ride = null; ch.x = L.spawn.x - 360; ch.t = 0; cam = clamp(p.x - W * 0.4, camMin(), L.w - W); }
         }
       }
     }
@@ -1478,7 +1483,7 @@
     p.hearts--; shake = 12;
     if (p.hearts <= 0) { if (run.angel) angelSave(); else { die(); return; } }
     p.x = L.spawn.x; p.y = L.spawn.y; p.vx = 0; p.vy = 0; p.inv = 100; p.ride = null; p.crouch = false; p.h = 38;
-    cam = clamp(p.x - W * 0.4, 0, L.w - W);
+    cam = clamp(p.x - W * 0.4, camMin(), L.w - W);
   }
   function applyBought() {   // im Laden gekaufte Power-ups wirken jetzt
     const b = run.bought || {}; let any = false;
@@ -3775,6 +3780,7 @@
     ctx.restore();
   }
   function drawDark() {   // dunkle Level: nur ein Lichtkreis um den Helden
+    if (drawDark.c && drawDark.c.width !== W) drawDark.c = null;
     if (!drawDark.c) { drawDark.c = document.createElement('canvas'); drawDark.c.width = W; drawDark.c.height = H; }
     const g = drawDark.c.getContext('2d'); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(4,4,10,.93)'; g.fillRect(0, 0, W, H);
     g.globalCompositeOperation = 'destination-out';
@@ -3834,7 +3840,7 @@
   function drawBackground() {
     const th = L.theme, sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, th.sky[0]); sky.addColorStop(1, th.sky[1]); ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-    if (th.stars) { for (let k = 0; k < 70; k++) { const x = ((seeded(k) * 1600 - cam * 0.05) % 800 + 800) % 800, y = seeded(k * 3) * 380; ctx.fillStyle = `rgba(255,255,255,${0.4 + Math.sin(frame * 0.05 + k) * 0.3})`; ctx.fillRect(x, y, k % 7 === 0 ? 2.5 : 1.5, k % 7 === 0 ? 2.5 : 1.5); } }
+    if (th.stars) { for (let k = 0; k < 70; k++) { const x = ((seeded(k) * 1600 - cam * 0.05) % W + W) % W, y = seeded(k * 3) * 380; ctx.fillStyle = `rgba(255,255,255,${0.4 + Math.sin(frame * 0.05 + k) * 0.3})`; ctx.fillRect(x, y, k % 7 === 0 ? 2.5 : 1.5, k % 7 === 0 ? 2.5 : 1.5); } }
     if (th.aurora) { ctx.save(); for (let k = 0; k < 3; k++) { ctx.globalAlpha = 0.18; ctx.fillStyle = ['#7CFF6B', '#5ef2ff', '#b388ff'][k]; ctx.beginPath(); ctx.moveTo(0, 60 + k * 30);
         for (let x = 0; x <= W; x += 20) ctx.lineTo(x, 60 + k * 30 + Math.sin(x * 0.01 + frame * 0.01 + k) * 30); for (let x = W; x >= 0; x -= 20) ctx.lineTo(x, 130 + k * 30 + Math.sin(x * 0.012 + frame * 0.012 + k) * 34); ctx.fill(); } ctx.restore(); }
     if (th.planet) { ctx.save(); ctx.fillStyle = '#c8803a'; ctx.beginPath(); ctx.arc(620, 140, 60, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(560, 120, 120, 8); ctx.fillRect(566, 150, 110, 6);
@@ -3855,7 +3861,7 @@
       ctx.save(); ctx.fillStyle = 'rgba(255,240,170,.9)'; ctx.shadowColor = '#fff3b0'; ctx.shadowBlur = 40; ctx.beginPath(); ctx.arc(640, 90, 38, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
     for (const [layer, f] of [[farLayer, 0.2], [midLayer, 0.45]]) {
-      const ox = -((cam * f) % 1600); ctx.drawImage(layer, ox, 0); ctx.drawImage(layer, ox + 1600, 0);
+      const ox = -((((cam * f) % 1600) + 1600) % 1600); ctx.drawImage(layer, ox, 0); ctx.drawImage(layer, ox + 1600, 0);
     }
     if (th.torches && L.torches) {   // Fackeln flackern
       for (const tx of L.torches) for (const off of [0, 1600]) {
@@ -3903,7 +3909,15 @@
   function drawWorld() {
     const cx = Math.round(cam);
     // Kacheln (Ausschnitt)
-    ctx.drawImage(tileLayer, cx, 0, W, H, 0, 0, W, H);
+    if (cx >= 0) ctx.drawImage(tileLayer, cx, 0, W, H, 0, 0, W, H);
+    else {   // links vom Level: Felswand in der Farbe der Welt
+      ctx.drawImage(tileLayer, 0, 0, W + cx, H, -cx, 0, W + cx, H);
+      const th = L.theme;
+      for (let r = 0; r < ROWS; r++) if (solid(L.map[r][0])) {
+        ctx.fillStyle = r % 2 ? th.ground2 : th.ground; ctx.fillRect(0, r * T, -cx, T);
+        if (r === 0 || !solid(L.map[r - 1][0])) { ctx.fillStyle = th.top; ctx.fillRect(0, r * T, -cx, 8); ctx.fillStyle = th.top2; ctx.fillRect(0, r * T + 8, -cx, 3); }
+      }
+    }
     ctx.save(); ctx.translate(-cx, 0);
     // Lava
     const c0 = Math.floor(cam / T), c1 = c0 + Math.ceil(W / T) + 1;
@@ -4330,8 +4344,8 @@
     else if (scene === 'play') {
       L.time++; run.time++;
       updatePlatforms(); updatePlayer(); updateFriends(); updateHazards(); updateEnemies(); updateBoss(); if (L.boss && L.boss.elite && frame % 3 === 0) updateBoss(); updateBossShots(); if (scene === 'play') checkHits();
-      let target = clamp(P.x - W * 0.4 + P.facing * 60, 0, L.w - W);
-      if (L.arena && L.arena.locked) target = L.arena.gl * T;   // Kamera bleibt in der Arena
+      let target = clamp(P.x - W * 0.4 + P.facing * 60, camMin(), L.w - W);
+      if (L.arena && L.arena.locked) target = clamp((L.arena.gl + L.arena.gr + 1) * T / 2 - W / 2, 0, L.w - W);   // Kamera bleibt in der Arena (mittig)
       cam += (target - cam) * 0.1;
     } else if (scene === 'dying') {
       P.vy += 0.6; P.y += P.vy;
@@ -4578,7 +4592,7 @@
     if (line) ctx.fillText(line, 274, yy); ctx.restore();
     outlined('← → auswählen  ·  ENTER / X kaufen  ·  oder antippen', W / 2 + 120, 516, 14, '#d8e8ff', 1, 'center', UIF);
     outlined('Jeder Laden hat andere Waren – schau immer rein!', W / 2 + 120, 540, 13, '#d8e8ff', 0.85, 'center', UIF);
-    drawHero(720, 590, -1, 1, 1, 0, true, 0, 1, frame, -1, run.weapon, { armor: run.armor });
+    drawHero(W - 80, 590, -1, 1, 1, 0, true, 0, 1, frame, -1, run.weapon, { armor: run.armor });
   }
   function wrapText(text, x, y, maxW, size) {
     ctx.save(); ctx.font = UIF(size); const words = text.split(' '); let line = '', yy = y;
@@ -4703,19 +4717,32 @@
     return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
   }
   const place = (el, x, y, w, h) => { el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; if (w !== undefined) { el.style.width = `${Math.round(w)}px`; el.style.height = `${Math.round(h)}px`; } };
+  function setGameWidth(w) {
+    w = Math.max(800, Math.min(1400, Math.round(w / 2) * 2));
+    if (w === W) return;
+    W = w; canvas.width = W; canvas.height = H;
+    if (L && P) cam = clamp(P.x - W * 0.4, camMin(), L.w - W);
+    for (const b of (L ? L.bgParts : [])) b.x = rand(0, W);
+  }
   function layoutTouch() {
-    if (!touchMode) { stageEl.style.cssText = ''; return; }
+    if (!touchMode) { stageEl.style.cssText = ''; setGameWidth(800); return; }
     const vv = window.visualViewport, vw = vv ? vv.width : innerWidth, vh = vv ? vv.height : innerHeight, s = safeInsets();
     const land = vw > vh, hint = document.getElementById('tHint');
     let sw, sh, sx, sy;
     const R = Math.max(50, Math.min(land ? 96 : 110, Math.min(vw, vh) * (land ? 0.15 : 0.14))), J = R * 0.78;
-    if (land) {   // Querformat: Spiel so hoch wie der Bildschirm, Steuerung links und rechts daneben
+    const wide = land && (vw - s.l - s.r) / (vh - s.t - s.b) > 1.55;   // Handy quer: breites Bild über den ganzen Bildschirm
+    if (wide) {
+      sh = vh - s.t - s.b; setGameWidth(600 * (vw - s.l - s.r) / sh); sw = sh * W / 600;
+      sx = s.l + (vw - s.l - s.r - sw) / 2; sy = s.t;
+    } else if (land) {   // Tablet quer: Spiel so hoch wie der Bildschirm, Steuerung links und rechts daneben
+      setGameWidth(800);
       sh = vh - s.t - s.b; sw = sh * 4 / 3;
       if (sw > vw - s.l - s.r) { sw = vw - s.l - s.r; sh = sw * 3 / 4; }
       const need = 2 * R + 14;   // Tablet (fast 4:3): Platz für die Kreise neben dem Spiel lassen
       if ((vw - sw) / 2 < need) { sw = Math.max(vw * 0.55, vw - 2 * need); sh = sw * 3 / 4; }
       sx = (vw - sw) / 2; sy = s.t + (vh - s.t - s.b - sh) / 2;
     } else {      // Hochformat: Spiel oben über die ganze Breite, Steuerung darunter
+      setGameWidth(800);
       sw = vw - s.l - s.r; sh = sw * 3 / 4;
       if (sh > (vh - s.t) * 0.6) { sh = (vh - s.t) * 0.6; sw = sh * 4 / 3; }
       sx = (vw - sw) / 2; sy = s.t;
@@ -4723,7 +4750,12 @@
     Object.assign(stageEl.style, { left: `${sx}px`, top: `${sy}px`, width: `${sw}px`, height: `${sh}px` });
     const side = Math.max(R + 16, (land ? sx / 2 : R + 22));
     let lx, ly, rx, ry, jx, jy;
-    if (land) {
+    if (wide) {   // Kreise in den unteren Ecken über dem Spiel
+      lx = s.l + R + 16; rx = vw - s.r - R - 16;
+      ly = ry = vh - s.b - R - 14;
+      jx = rx - R - J * 0.55; jy = ry - R - J * 0.35;
+      if (jy - J < s.t + 70) { jx = rx - R - J - 10; jy = ry; }
+    } else if (land) {
       lx = Math.max(s.l + R + 12, side); rx = vw - Math.max(s.r + R + 12, side);
       ly = ry = vh - s.b - R - 22;
       jx = rx; jy = ry - R - J - 22;
@@ -4740,12 +4772,18 @@
     place(document.getElementById('tJump'), jx - J, jy - J, J * 2, J * 2);
     place(document.getElementById('lbL'), lx, ly - R - 18); place(document.getElementById('lbR'), rx, ry - R - 18);
     if (jx !== rx) place(document.getElementById('lbR'), rx, ry + R + 6);
+    document.getElementById('lbL').style.display = document.getElementById('lbR').style.display = wide ? 'none' : '';
+    tui.classList.toggle('wide', wide);
     // kleine Knöpfe: Querformat oben in den Ecken, Hochformat unter dem Spielbild
     const minis = ['tPause', 'tSnd', 'tWeap', 'tFull'].map((id) => document.getElementById(id));
     const mw = Math.round(Math.max(44, Math.min(64, R * 0.6)));
     minis.forEach((m) => { m.style.width = `${mw}px`; m.style.height = `${Math.round(mw * 0.9)}px`; m.style.fontSize = `${mw * 0.4}px`; });
     document.getElementById('tJump').style.fontSize = `${Math.max(12, R * 0.2)}px`;
-    if (land) {
+    if (wide) {   // kleine Knöpfe oben zwischen Anzeige und Levelname, damit sie nichts verdecken
+      const y = s.t + 8, a = sx + sw * 0.27, b2 = sx + sw * 0.73;
+      place(minis[0], a - mw - 5, y); place(minis[1], a + 5, y); place(minis[2], b2 + 5, y); place(minis[3], b2 - mw - 5, y);
+      hint.textContent = '';
+    } else if (land) {
       place(minis[0], s.l + 10, s.t + 10); place(minis[1], s.l + 20 + mw, s.t + 10);
       place(minis[2], vw - s.r - 10 - mw, s.t + 10); place(minis[3], vw - s.r - 20 - mw * 2, s.t + 10);
       hint.style.top = `${vh - s.b - 18}px`; hint.textContent = '';
