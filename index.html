@@ -66,6 +66,8 @@
   @media (hover: hover) and (pointer: fine) { .pad { display: none; } }
   /* ---------- Handy-Modus: Spiel füllt den Bildschirm, zwei Steuerkreise darüber ---------- */
   .tui { display: none; }
+  html.touch { height: 100%; overflow: hidden; touch-action: none; overscroll-behavior: none; }
+  body.touch, body.touch * { touch-action: none; -webkit-user-select: none; user-select: none; }
   body.touch { position: fixed; inset: 0; padding: 0; gap: 0; display: block; overflow: hidden; background: #05060a; -webkit-touch-callout: none; overscroll-behavior: none; }
   body.touch .pad, body.touch .help { display: none; }
   body.touch .stage { position: absolute; max-width: none; max-height: none; aspect-ratio: auto; border: 0; border-radius: 0; box-shadow: none; }
@@ -4694,7 +4696,7 @@
   const tin = { lx: 0, ly: 0, lOn: false, rx: 0, ry: 0, rOn: false, jumpBtn: false, stickJump: false, navX: 0, navY: 0 };
   function setTouchMode(on) {
     if (touchMode === on) return;
-    touchMode = on; document.body.classList.toggle('touch', on); layoutTouch();
+    touchMode = on; document.body.classList.toggle('touch', on); document.documentElement.classList.toggle('touch', on); layoutTouch();
   }
   function safeInsets() {
     const cs = getComputedStyle(document.getElementById('safe'));
@@ -4706,9 +4708,12 @@
     const vv = window.visualViewport, vw = vv ? vv.width : innerWidth, vh = vv ? vv.height : innerHeight, s = safeInsets();
     const land = vw > vh, hint = document.getElementById('tHint');
     let sw, sh, sx, sy;
+    const R = Math.max(50, Math.min(land ? 96 : 110, Math.min(vw, vh) * (land ? 0.15 : 0.14))), J = R * 0.78;
     if (land) {   // Querformat: Spiel so hoch wie der Bildschirm, Steuerung links und rechts daneben
       sh = vh - s.t - s.b; sw = sh * 4 / 3;
       if (sw > vw - s.l - s.r) { sw = vw - s.l - s.r; sh = sw * 3 / 4; }
+      const need = 2 * R + 14;   // Tablet (fast 4:3): Platz für die Kreise neben dem Spiel lassen
+      if ((vw - sw) / 2 < need) { sw = Math.max(vw * 0.55, vw - 2 * need); sh = sw * 3 / 4; }
       sx = (vw - sw) / 2; sy = s.t + (vh - s.t - s.b - sh) / 2;
     } else {      // Hochformat: Spiel oben über die ganze Breite, Steuerung darunter
       sw = vw - s.l - s.r; sh = sw * 3 / 4;
@@ -4716,7 +4721,6 @@
       sx = (vw - sw) / 2; sy = s.t;
     }
     Object.assign(stageEl.style, { left: `${sx}px`, top: `${sy}px`, width: `${sw}px`, height: `${sh}px` });
-    const R = Math.max(46, Math.min(74, (land ? vh : vw) * (land ? 0.17 : 0.15))), J = R * 0.78;
     const side = Math.max(R + 16, (land ? sx / 2 : R + 22));
     let lx, ly, rx, ry, jx, jy;
     if (land) {
@@ -4738,13 +4742,16 @@
     if (jx !== rx) place(document.getElementById('lbR'), rx, ry + R + 6);
     // kleine Knöpfe: Querformat oben in den Ecken, Hochformat unter dem Spielbild
     const minis = ['tPause', 'tSnd', 'tWeap', 'tFull'].map((id) => document.getElementById(id));
+    const mw = Math.round(Math.max(44, Math.min(64, R * 0.6)));
+    minis.forEach((m) => { m.style.width = `${mw}px`; m.style.height = `${Math.round(mw * 0.9)}px`; m.style.fontSize = `${mw * 0.4}px`; });
+    document.getElementById('tJump').style.fontSize = `${Math.max(12, R * 0.2)}px`;
     if (land) {
-      place(minis[0], s.l + 10, s.t + 10); place(minis[1], s.l + 60, s.t + 10);
-      place(minis[2], vw - s.r - 54, s.t + 10); place(minis[3], vw - s.r - 104, s.t + 10);
+      place(minis[0], s.l + 10, s.t + 10); place(minis[1], s.l + 20 + mw, s.t + 10);
+      place(minis[2], vw - s.r - 10 - mw, s.t + 10); place(minis[3], vw - s.r - 20 - mw * 2, s.t + 10);
       hint.style.top = `${vh - s.b - 18}px`; hint.textContent = '';
     } else {
       const y = sy + sh + 8;
-      place(minis[0], s.l + 10, y); place(minis[1], s.l + 60, y); place(minis[2], vw - s.r - 54, y); place(minis[3], vw - s.r - 104, y);
+      place(minis[0], s.l + 10, y); place(minis[1], s.l + 20 + mw, y); place(minis[2], vw - s.r - 10 - mw, y); place(minis[3], vw - s.r - 20 - mw * 2, y);
       hint.style.top = `${y + 10}px`; hint.textContent = 'Tipp: Handy quer halten = größeres Bild';
     }
     minis[3].style.display = document.fullscreenEnabled && !document.fullscreenElement ? '' : 'none';
@@ -4752,7 +4759,10 @@
   window.addEventListener('resize', layoutTouch); window.addEventListener('orientationchange', () => setTimeout(layoutTouch, 120));
   if (window.visualViewport) visualViewport.addEventListener('resize', layoutTouch);
   document.addEventListener('fullscreenchange', layoutTouch);
-  if (matchMedia('(pointer: coarse)').matches && !matchMedia('(hover: hover)').matches) setTouchMode(true);
+  if ((matchMedia('(pointer: coarse)').matches && !matchMedia('(hover: hover)').matches) || (navigator.maxTouchPoints > 1 && matchMedia('(any-pointer: coarse)').matches)) setTouchMode(true);
+  // im Spiel darf die Seite nicht scrollen oder zoomen (sonst bricht Safari die Wischbewegung ab)
+  document.addEventListener('touchmove', (e) => { if (touchMode) e.preventDefault(); }, { passive: false });
+  ['gesturestart', 'gesturechange', 'dblclick'].forEach((ev) => document.addEventListener(ev, (e) => { if (touchMode) e.preventDefault(); }, { passive: false }));
   window.addEventListener('touchstart', () => setTouchMode(true), { passive: true, once: true });
 
   function applyTouch() {   // Steuerkreise -> Tasten
@@ -4781,10 +4791,10 @@
   }
   function stick(id, side) {
     const el = document.getElementById(id), knob = el.querySelector('.knob');
-    let pid = null;
-    const move = (e) => {
+    let held = false;
+    const move = (x, y) => {
       const r = el.getBoundingClientRect(), R = r.width / 2;
-      let dx = (e.clientX - (r.left + R)) / R, dy = (e.clientY - (r.top + R)) / R;
+      let dx = (x - (r.left + R)) / (R * 0.8), dy = (y - (r.top + R)) / (R * 0.8);   // schon bei 80 % voller Ausschlag
       const d = Math.hypot(dx, dy); if (d > 1) { dx /= d; dy /= d; }
       knob.style.transform = `translate(calc(-50% + ${dx * R * 0.62}px), calc(-50% + ${dy * R * 0.62}px))`;
       if (side === 'l') {
@@ -4797,28 +4807,40 @@
       } else { tin.rx = dx; tin.ry = dy; }
       applyTouch();
     };
-    el.addEventListener('pointerdown', (e) => {
-      e.preventDefault(); audioInit(); pid = e.pointerId; try { el.setPointerCapture(pid); } catch {} el.classList.add('on');
+    const start = (x, y) => {
+      audioInit(); held = true; el.classList.add('on');
       if (side === 'r') {
-        if (scene !== 'play' && scene !== 'intro') { confirmTouch(); return; }
-        if (paused) { paused = false; return; }
+        if (scene !== 'play' && scene !== 'intro') { held = false; el.classList.remove('on'); confirmTouch(); return; }
+        if (paused) { paused = false; held = false; el.classList.remove('on'); return; }
         tin.rOn = true; shootPressed = true;
       } else tin.lOn = true;
-      move(e);
-    });
-    el.addEventListener('pointermove', (e) => { if (e.pointerId === pid) move(e); });
-    const up = (e) => {
-      if (e.pointerId !== pid) return; pid = null; el.classList.remove('on'); knob.style.transform = '';
+      move(x, y);
+    };
+    const end = () => {
+      held = false; el.classList.remove('on'); knob.style.transform = '';
       if (side === 'l') { tin.lOn = false; tin.lx = tin.ly = 0; tin.navX = tin.navY = 0; tin.stickJump = false; } else { tin.rOn = false; tin.rx = tin.ry = 0; }
       applyTouch();
     };
-    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => el.addEventListener(ev, up));
+    let tid = null;   // Touch: der Finger bleibt am Kreis "kleben", auch wenn er darüber hinaus wischt
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); if (tid !== null) return; const tt = e.changedTouches[0]; tid = tt.identifier; start(tt.clientX, tt.clientY); }, { passive: false });
+    el.addEventListener('touchmove', (e) => { e.preventDefault(); for (const tt of e.changedTouches) if (tt.identifier === tid && held) move(tt.clientX, tt.clientY); }, { passive: false });
+    const tend = (e) => { for (const tt of e.changedTouches) if (tt.identifier === tid) { tid = null; if (held) end(); } };
+    el.addEventListener('touchend', tend); el.addEventListener('touchcancel', tend);
+    let mouse = false;   // Maus (zum Ausprobieren am PC)
+    el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') return; e.preventDefault(); mouse = true; try { el.setPointerCapture(e.pointerId); } catch {} start(e.clientX, e.clientY); });
+    el.addEventListener('pointermove', (e) => { if (mouse && held) move(e.clientX, e.clientY); });
+    ['pointerup', 'pointercancel'].forEach((ev) => el.addEventListener(ev, (e) => { if (e.pointerType === 'mouse' && mouse) { mouse = false; if (held) end(); } }));
   }
   stick('stL', 'l'); stick('stR', 'r');
   const tbtn = (id, down, up2) => {
     const el = document.getElementById(id);
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); audioInit(); el.classList.add('on'); down(); });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => el.addEventListener(ev, () => { el.classList.remove('on'); if (up2) up2(); }));
+    let n = 0;
+    const press = () => { audioInit(); el.classList.add('on'); down(); }, release = () => { el.classList.remove('on'); if (up2) up2(); };
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); if (n++ === 0) press(); }, { passive: false });
+    const tend = (e) => { e.preventDefault(); n = Math.max(0, n - e.changedTouches.length); if (n === 0) release(); };
+    el.addEventListener('touchend', tend, { passive: false }); el.addEventListener('touchcancel', tend, { passive: false });
+    el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') return; e.preventDefault(); press(); });
+    ['pointerup', 'pointerleave'].forEach((ev) => el.addEventListener(ev, (e) => { if (e.pointerType === 'mouse' && el.classList.contains('on')) release(); }));
   };
   tbtn('tJump', () => {
     if (scene !== 'play' && scene !== 'intro') { confirmTouch(); return; }
