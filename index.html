@@ -559,7 +559,7 @@
   // =====================================================================
   //  ZUSTAND
   // =====================================================================
-  let scene = 'title';        // title, intro, play, dying, gameover, clear, victory
+  let scene = 'title';        // title, intro, play, dying, gameover, clear, olph (Minispiel), victory, olphEnd
   let sceneT = 0, paused = false, frame = 0, shake = 0, screenMsg = null;
   let levelIndex = 0, L = null, P = null, cam = 0;
   const camMin = () => (W > 900 ? -Math.round((W - 800) * 0.35) : 0);   // breites Handybild: links vom Level etwas Fels zeigen
@@ -629,7 +629,7 @@
     }
     P = makePlayer(L.spawn.x, L.spawn.y);
     cam = clamp(P.x - W * 0.4, camMin(), L.w - W);
-    if (!keepRun) run = { score: 0, coins: 0, coinsTotal: 0, kills: 0, time: 0, hearts: 3, weapon: L.E.weapons[0], weapons: weaponsForStart(i), weaponEra: L.era,
+    if (!keepRun) run = { eraClean: i % LEVELS_PER_ERA === 0, score: 0, coins: 0, coinsTotal: 0, kills: 0, time: 0, hearts: 3, weapon: L.E.weapons[0], weapons: weaponsForStart(i), weaponEra: L.era,
                           armor: armorForStart(i), friends: friendsForStart(i), bought: {} };
     run.weapons = run.weapons || [run.weapon]; run.bought = run.bought || {};
     if (run.weaponEra !== L.era) {   // neues Zeitalter: die neue Waffe kommt in den Rucksack (die alten bleiben)
@@ -1420,7 +1420,7 @@
         ch.x += v;
         if (p.x - ch.x < 320 && frame % 8 === 0) shake = Math.max(shake, 2);
         if (ch.x > p.x + 6) {   // eingeholt!
-          p.hearts--; shake = 12; SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4d6d', 14);
+          p.hearts--; shake = 12; SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4d6d', 14); patrickDeath('chaser');
           if (p.hearts <= 0) die();
           else { p.x = L.spawn.x; p.y = L.spawn.y; p.vx = 0; p.vy = 0; p.inv = 100; p.ride = null; ch.x = L.spawn.x - 360; ch.t = 0; cam = clamp(p.x - W * 0.4, camMin(), L.w - W); }
         }
@@ -1546,6 +1546,7 @@
   }
   function fallDeath(lava) {
     const p = P; if (p.dead) return;
+    patrickDeath(lava ? 'lava' : 'fall');
     if (lava) { SFX.lava(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff7b2b', 24); } else SFX.hurt();
     p.hearts--; shake = 12;
     if (p.hearts <= 0) { if (run.angel) angelSave(); else { die(); return; } }
@@ -1567,7 +1568,7 @@
     if (L) popup(P.x + P.w / 2, P.y - 14, WEAPONS[run.weapon].name, WEAPONS[run.weapon].color);
   }
   function buzz(ms) { try { if (touchMode && navigator.vibrate) navigator.vibrate(ms); } catch {} }   // Android: kurz vibrieren
-  function die() { buzz(220); P.dead = true; P.vy = -12; P.vx = 0; scene = 'dying'; sceneT = 0; music.on = false; SFX.over(); }
+  function die() { patrickDeath(L.boss && L.boss.active ? 'boss' : L.chaser ? 'chaser' : 'enemy'); buzz(220); P.dead = true; P.vy = -12; P.vx = 0; scene = 'dying'; sceneT = 0; music.on = false; SFX.over(); }
 
   // =====================================================================
   //  GEGNER
@@ -5060,16 +5061,23 @@
     outlined(HOF_FIRST.name.toUpperCase(), W / 2 - 154, 150, 32, '#ffffff', 1, 'left');
     outlined(HOF_FIRST.title, W / 2 - 154, 182, 17, '#ffd23f', 1, 'left', UIF);
     outlined('★ EHRENPLATZ ★', W / 2 + 280, 150, 14, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4, 'right', UIF);
+    // Platz 2 für immer: Patrick
+    ctx.save(); const g2 = ctx.createLinearGradient(0, 210, 0, 262); g2.addColorStop(0, 'rgba(232,238,247,.28)'); g2.addColorStop(1, 'rgba(120,130,150,.28)');
+    ctx.fillStyle = g2; roundRect(ctx, W / 2 - 300, 210, 600, 54, 14); ctx.fill(); ctx.strokeStyle = '#c9d1dc'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.beginPath(); roundRect(ctx, W / 2 - 296, 213, 48, 48, 10); ctx.clip(); drawPatrick(W / 2 - 272, 300, ERA_MA, 1.7); ctx.restore();
+    outlined('2.', W / 2 - 236, 238, 24, '#e8eef7', 1, 'left');
+    outlined('PATRICK', W / 2 - 200, 230, 24, '#ffffff', 1, 'left');
+    outlined('der zweite Retter von Zuhal – und Tippgeber mit Bier', W / 2 - 200, 252, 14, '#c9d1dc', 1, 'left', UIF);
     if (!hof.length) {
-      outlined('Platz 2 ist noch frei …', W / 2, 270, 26, '#ffffff');
-      outlined(`Schaffe alle ${LEVELS.length} Level und trag dich hier ein!`, W / 2, 306, 17, '#d8e8ff', 1, 'center', UIF);
+      outlined('Platz 3 ist noch frei …', W / 2, 330, 26, '#ffffff');
+      outlined(`Schaffe alle ${LEVELS.length} Level und trag dich hier ein!`, W / 2, 366, 17, '#d8e8ff', 1, 'center', UIF);
     } else {
-      outlined('PLATZ', W / 2 - 280, 228, 13, '#9aa3b8', 1, 'left', UIF); outlined('NAME', W / 2 - 200, 228, 13, '#9aa3b8', 1, 'left', UIF);
-      outlined('SCORE', W / 2 + 120, 228, 13, '#9aa3b8', 1, 'right', UIF); outlined('ZEIT', W / 2 + 200, 228, 13, '#9aa3b8', 1, 'right', UIF); outlined('DATUM', W / 2 + 290, 228, 13, '#9aa3b8', 1, 'right', UIF);
+      outlined('PLATZ', W / 2 - 280, 286, 13, '#9aa3b8', 1, 'left', UIF); outlined('NAME', W / 2 - 200, 286, 13, '#9aa3b8', 1, 'left', UIF);
+      outlined('SCORE', W / 2 + 120, 286, 13, '#9aa3b8', 1, 'right', UIF); outlined('ZEIT', W / 2 + 200, 286, 13, '#9aa3b8', 1, 'right', UIF); outlined('DATUM', W / 2 + 290, 286, 13, '#9aa3b8', 1, 'right', UIF);
       hof.forEach((e, i) => {
-        const y = 258 + i * 34, me = run && run.hofName === e.name && run.score === e.score;
-        if (me) { ctx.save(); ctx.fillStyle = 'rgba(124,255,107,.15)'; roundRect(ctx, W / 2 - 294, y - 16, 588, 32, 10); ctx.fill(); ctx.restore(); }
-        outlined(`${i + 2}.`, W / 2 - 280, y, 22, i === 0 ? '#e8eef7' : i === 1 ? '#e8a060' : '#ffffff', 1, 'left');
+        const y = 312 + i * 30, me = run && run.hofName === e.name && run.score === e.score;
+        if (me) { ctx.save(); ctx.fillStyle = 'rgba(124,255,107,.15)'; roundRect(ctx, W / 2 - 294, y - 14, 588, 28, 10); ctx.fill(); ctx.restore(); }
+        outlined(`${i + 3}.`, W / 2 - 280, y, 22, i === 0 ? '#e8a060' : '#ffffff', 1, 'left');
         outlined(e.name, W / 2 - 200, y, 22, '#ffffff', 1, 'left');
         outlined(String(e.score).padStart(6, '0'), W / 2 + 120, y, 20, '#ffd23f', 1, 'right');
         outlined(`${Math.floor(e.time / 60)}:${String(e.time % 60).padStart(2, '0')}`, W / 2 + 200, y, 16, '#d8e8ff', 1, 'right', UIF);
@@ -5079,18 +5087,30 @@
     drawPrincess(W / 2 + 330, 590, -1, frame, 1.1); drawHero(W / 2 - 330, 590, 1, 1.1, 1.1, 0, true, 0, 1, frame, -1, 'schwert', { era: ERA_MA });
     outlined('ENTER / H / TIPPEN: zurück', W / 2, 560, 18, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4);
   }
+  function drawOlphEnd() {
+    if (L) { drawBackground(); ctx.drawImage(tileLayer, Math.round(cam), 0, W, H, 0, 0, W, H); }
+    ctx.fillStyle = 'rgba(16,8,30,.9)'; ctx.fillRect(0, 0, W, H);
+    for (let k = 0; k < 9; k++) clockFace(ctx, ((k * 190 + frame * 0.6) % (W + 120)) - 60, 60 + (k % 4) * 140, 14 + (k % 3) * 8, 'rgba(232,160,255,.22)', 'rgba(255,255,255,.04)', 'rgba(232,160,255,.3)');
+    drawOlph(W / 2 - 200, 560, 2.6, 'laugh', frame);
+    bubble(W / 2 - 60, 120, 380, 'Hahaha! Glückwunsch zu 500 Leveln! Aber den Zeit-Lord hab ICH geschickt. Ich, OLPHILVER, der Herr der Zeitverschwendung! Ich habe euch die ganze Zeit die Zeit gestohlen … und ich habe noch SO viel Zeit. Wir sehen uns wieder!', 17);
+    outlined('FORTSETZUNG FOLGT …', W / 2 + 130, 440, 34, '#e8a0ff', 0.7 + Math.sin(frame * 0.08) * 0.3);
+    if (sceneT > 60) outlined('ENTER / TIPPEN: Namen in die Hall of Fame eintragen', W / 2 + 130, 500, 16, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4, 'center', UIF);
+  }
   function titleButtons() { return { code: { x: 12, y: 12, w: 168, h: 38 }, hof: { x: W - 180, y: 12, w: 168, h: 38 } }; }
 
   function draw() {
     if (scene === 'title') { drawTitle(); return; }
     if (scene === 'shop') { drawShop(); if (screenMsg) { outlined(screenMsg.t, W / 2, 410, 20, '#ffffff', Math.min(1, screenMsg.life / 15)); if (--screenMsg.life <= 0) screenMsg = null; } return; }
     if (scene === 'hof') { drawHof(); return; }
+    if (scene === 'olph' && MG) { drawOlphScene(); return; }
+    if (scene === 'olphEnd') { drawOlphEnd(); return; }
     ctx.save();
     if (shake > 0) ctx.translate(rand(-shake, shake), rand(-shake, shake));
     drawBackground(); drawWorld();
     if (L.def.dunkel) drawDark();
     ctx.restore();
     drawHUD();
+    if (L.patrick && scene === 'play' && !paused) { ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, (L.patrick.dur - L.patrick.t) / 15)); drawPatrickTip(L.patrick.text, L.patrick.t); ctx.restore(); }
     if (scene === 'intro') {
       const a = Math.max(0, Math.min(1, sceneT / 15, (110 - sceneT) / 15));
       if (L.eraIntro) {   // neues Zeitalter: große Ankündigung
@@ -5134,7 +5154,7 @@
       else outlined('LEVEL GESCHAFFT!', W / 2, 180, 44, '#7CFF6B');
       const t = L.tally, rows = [['Münzen', `${t.coins}`], ['Gegner besiegt', `${t.kills}`], ['Zeit', `${Math.floor(t.secs / 60)}:${String(t.secs % 60).padStart(2, '0')}`], ['Zeitbonus', `+${t.timeBonus}`], ['Herzbonus', `+${t.heartBonus}`]];
       rows.forEach(([k2, v], i) => { if (sceneT > 20 + i * 12) { outlined(k2, W / 2 - 170, 240 + i * 36, 20, '#d8e8ff', 1, 'left', UIF); outlined(v, W / 2 + 170, 240 + i * 36, 22, '#ffffff', 1, 'right'); } });
-      if (sceneT > 100) outlined(levelIndex + 1 >= LEVELS.length ? 'ENTER / TIPPEN: ZUM FINALE' : (levelIndex + 1) % 10 === 0 ? 'ENTER / TIPPEN: ZUM LADEN' : 'ENTER / TIPPEN: WEITER', W / 2, 432, 18, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4);
+      if (sceneT > 100) outlined(levelIndex + 1 >= LEVELS.length ? 'ENTER / TIPPEN: ZUM FINALE' : L.timeJump ? 'ENTER / TIPPEN: ZUM ZEITPORTAL' : (levelIndex + 1) % 10 === 0 ? 'ENTER / TIPPEN: ZUM LADEN' : 'ENTER / TIPPEN: WEITER', W / 2, 432, 18, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4);
     }
     if (scene === 'gameover') {
       panel(W / 2 - 220, 170, 440, 240);
@@ -5196,10 +5216,12 @@
     if (shake > 0) shake *= 0.85; if (shake < 0.4) shake = 0;
     if (scene === 'title' || scene === 'shop' || paused) return;
     sceneT++;
+    if (scene === 'olph') { if (MG) updateOlph(); return; }
+    if (scene === 'olphEnd') return;
     if (scene === 'intro') { updatePlatforms(); updateEnemies(); if (sceneT > 110) { scene = 'play'; music.on = true; applyBought(); } }
     else if (scene === 'play') {
       L.time++; run.time++;
-      updatePlatforms(); updatePlayer(); updateFriends(); updateHazards(); updateEnemies(); updateBoss(); if (L.boss && L.boss.elite && frame % 3 === 0) updateBoss(); updateBossShots(); if (scene === 'play') checkHits();
+      updatePatrick(); updatePlatforms(); updatePlayer(); updateFriends(); updateHazards(); updateEnemies(); updateBoss(); if (L.boss && L.boss.elite && frame % 3 === 0) updateBoss(); updateBossShots(); if (scene === 'play') checkHits();
       let target = clamp(P.x - W * 0.4 + P.facing * 60, camMin(), L.w - W);
       if (L.arena && L.arena.locked) target = clamp((L.arena.gl + L.arena.gr + 1) * T / 2 - W / 2, 0, L.w - W);   // Kamera bleibt in der Arena (mittig)
       cam += (target - cam) * 0.1;
@@ -5377,6 +5399,14 @@
       case 'netz': ctx.save(); ctx.shadowColor = '#39ff8a'; ctx.shadowBlur = 8; rr(hx - 9, hy - 4, 12, 3.5, 1.5, '#39ff8a'); ctx.restore(); stroke('#1b1b20', 1.2, hx + 6, hy - 1, hx - 4, hy + 4); break;
       default: rr(hx - 6, hy - 19, 12, 12, 1, '#2a2a3a'); ell(hx, hy - 7, 10, 2.2, '#2a2a3a'); ctx.fillStyle = '#e8a0ff'; ctx.fillRect(hx - 6, hy - 11, 12, 2); dot(hx + 4, hy - 15, 2.2, '#ffd23f');
     }
+    // Kaffeetasse in der Hand (mit Dampf)
+    rr(-20, -24, 7, 8, 1.5, '#ffffff'); ell(-16.5, -24, 3.5, 1, '#5a3a1a'); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(-12.6, -20, 2.2, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+    rr(-19, -21, 5, 1.5, 0.5, '#c8102e');
+    for (let k = 0; k < 2; k++) { const ph = (frame * 0.6 + k * 20) % 40; stroke(`rgba(255,255,255,${0.5 - ph / 90})`, 0.8, -17 + k * 2, -26 - ph * 0.3, -18 + k * 2 + Math.sin(ph * 0.3) * 1.2, -29 - ph * 0.3); }
+    // Zigarette im Mundwinkel (mit Rauch)
+    ctx.fillStyle = '#f2efe6'; ctx.fillRect(-12.5, -31.2, 6, 1.6); ctx.fillStyle = '#d9a066'; ctx.fillRect(-7, -31.2, 1.6, 1.6);
+    ctx.save(); ctx.shadowColor = '#ff7b2b'; ctx.shadowBlur = 4; dot(-12.8, -30.4, 1, frame % 40 < 20 ? '#ff7b2b' : '#ffb238'); ctx.restore();
+    for (let k = 0; k < 4; k++) { const ph = (frame * 0.4 + k * 12) % 48; dot(-13.5 - ph * 0.12 + Math.sin(ph * 0.2 + k) * 1.5, -32 - ph * 0.45, 0.8 + ph * 0.04, `rgba(210,210,220,${Math.max(0, 0.55 - ph / 90)})`); }
     ctx.restore();
   }
   function shopIcon(it, x, y) {   // Bild der Ware
@@ -5480,17 +5510,521 @@
     for (const w of words) { const test = line ? line + ' ' + w : w; if (ctx.measureText(test).width > maxW && line) { outlined(line, x, yy, size, '#d8e8ff', 1, 'center', UIF); line = w; yy += size + 3; } else line = test; }
     if (line) outlined(line, x, yy, size, '#d8e8ff', 1, 'center', UIF); ctx.restore();
   }
+  // =====================================================================
+  //  OLPHILVER, HERR DER ZEITVERSCHWENDUNG
+  //  Er zieht im Hintergrund die Fäden und lässt einen erst ins nächste
+  //  Zeitalter, wenn man sein nerviges Minispiel geschafft hat.
+  //  Wer ein Zeitalter ohne zu sterben schafft, hat den Zeitverschwendungs-
+  //  schutz und darf das Minispiel überspringen.
+  // =====================================================================
+  const OLPH_NAME = 'OLPHILVER';
+  const OLPH_GAMES = ['ttt', 'ssp', 'memory', 'code', 'simon', 'ordnen', 'schiebe', 'kabel'];
+  const OLPH_TITLE = { ttt: 'TIC-TAC-TOE', ssp: 'SCHERE · STEIN · PAPIER', memory: 'MEMORY', code: 'CODE KNACKEN', simon: 'OLPHILVER SAGT …',
+                       ordnen: 'RICHTIG ORDNEN', schiebe: 'SCHIEBEPUZZLE', kabel: 'KABEL VERBINDEN' };
+  const OLPH_INTRO = {
+    ttt: 'Gääähn … Ihr wollt ins nächste Zeitalter? Erst schlagt ihr mich in Tic-Tac-Toe. Unentschieden zählt nicht!',
+    ssp: 'Schere, Stein, Papier! Ich hab extra geübt. Also … zweimal. Oder einmal. Egal!',
+    memory: 'Memory! Ich hab die Karten so gemischt, dass ihr ewig braucht. Hehehe.',
+    code: 'Mein Tresor hat einen Geheimcode. Rate ihn! Schwarz = richtige Farbe am richtigen Platz, weiß = richtige Farbe, falscher Platz.',
+    simon: 'Olphilver sagt: Drück die Farben genau so nach wie ich! Wer sich vertut, fängt von vorn an.',
+    ordnen: 'Bring das hier in die richtige Reihenfolge. Ein Fehler – und alles wieder von vorn!',
+    schiebe: 'Ein Schiebepuzzle! Ordne die Zahlen 1 bis 8. Ich hab Zeit. Viel Zeit. Ich BIN die Zeitverschwendung!',
+    kabel: 'Verbinde jedes Kabel links mit dem richtigen Ende rechts. Zu viele Fehler – und ich stecke alles wieder um!',
+  };
+  const OLPH_OOPS = ['Hahaha! Nochmal!', 'Na, Zeit verschwendet? Das freut mich!', 'Gääähn … nochmal von vorn.', 'Ich hab Zeit. Ihr auch?', 'Falsch! Hihihi.',
+                     'Das kostet nichts – außer Zeit. MEINE Lieblingswährung!'];
+  const OLPH_WIN = ['Grrr … na gut, geh schon. Ich hab eh noch 1000 Jahre Zeit.', 'Pah! Glück gehabt. Beim nächsten Portal warte ich wieder!',
+                    'Unmöglich! Ich muss mehr Zeit verschwenden … äh, üben!', 'Na schön. Aber ich ziehe weiter die Fäden. Merkt euch das!'];
+  const PATRICK_GAME_TIP = {
+    ttt: 'Tipp von Patrick: Fang in einer Ecke an – und stell ihm eine Falle mit zwei Gewinnreihen. Prost!',
+    ssp: 'Tipp von Patrick: Der hat keine Strategie. Der würfelt. Einfach weiterspielen!',
+    memory: 'Tipp von Patrick: Merk dir jede aufgedeckte Karte. Ich merk mir nur, wo mein Bier steht.',
+    code: 'Tipp von Patrick: Jede Farbe kommt nur einmal vor. Erst Farben finden, dann die Plätze!',
+    simon: 'Tipp von Patrick: Sprich die Farben leise mit. Rot, Gelb, Blau … Hicks.',
+    ordnen: 'Tipp von Patrick: Lies erst alles durch, bevor du klickst. Das hab ich im Unterricht gelernt!',
+    schiebe: 'Tipp von Patrick: Erst die obere Reihe 1-2-3 fertig machen, dann den Rest.',
+    kabel: 'Tipp von Patrick: Erst links ein Kabel wählen, dann rechts das passende Ende.',
+  };
+  let MG = null;   // das laufende Minispiel
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  function startOlph() {   // vor dem Zeitportal: Olphilver stellt sich in den Weg
+    const k = Math.floor((levelIndex + 1) / LEVELS_PER_ERA) - 1;   // 0 … 18
+    MG = { k, game: OLPH_GAMES[k % OLPH_GAMES.length], lvl: Math.min(2, Math.floor(k / OLPH_GAMES.length)), t: 0, tries: 0, btns: [], sel: 0,
+           phase: run.eraClean ? 'wahl' : 'play', say: '', sayT: 0, mood: 'smug', lock: 0 };
+    scene = 'olph'; sceneT = 0; music.on = true; music.song = 6; music.step = 0;
+    if (MG.phase === 'wahl') { olphSay('Was?! Ihr habt ein ganzes Zeitalter ohne zu sterben geschafft? Dann habt ihr den Zeitverschwendungs-Schutz … grrr.'); olphButtons(); }
+    else mgSetup();
+    SFX.roar();
+  }
+  function olphSay(text, mood = 'smug') { MG.say = text; MG.sayT = 0; MG.mood = mood; }
+  function olphButtons() {   // Auswahl mit Schutz: spielen oder überspringen
+    const cx = W / 2 + 90;
+    MG.btns = [{ x: cx - 200, y: 300, w: 180, h: 64, label: 'TROTZDEM SPIELEN', act: () => { MG.phase = 'play'; mgSetup(); } },
+               { x: cx + 20, y: 300, w: 180, h: 64, label: 'ÜBERSPRINGEN', act: () => { olphSay('Unfair! Total unfair! Na gut … geh schon.', 'angry'); mgWin(true); } }];
+    MG.sel = 1;
+  }
+  function mgSetup() {   // ein Minispiel (neu) aufbauen
+    const g = MG.game, l = MG.lvl, cx = W / 2 + 90;
+    MG.btns = []; MG.sel = 0; MG.lock = 0; MG.d = {};
+    olphSay(MG.tries ? pick(OLPH_OOPS) : OLPH_INTRO[g], MG.tries ? 'laugh' : 'smug');
+    const D = MG.d;
+    if (g === 'ttt') {
+      D.b = Array(9).fill(''); D.turn = 'X';
+      for (let i = 0; i < 9; i++) MG.btns.push({ x: cx - 135 + (i % 3) * 90, y: 170 + Math.floor(i / 3) * 90, w: 86, h: 86, cell: i, act: () => tttMove(i) });
+      MG.sel = 4;
+    } else if (g === 'ssp') {
+      D.need = l ? 3 : 2; D.me = 0; D.him = 0; D.last = null;
+      ['stein', 'schere', 'papier'].forEach((h, i) => MG.btns.push({ x: cx - 195 + i * 135, y: 330, w: 120, h: 120, hand: h, act: () => sspPlay(h) }));
+      MG.sel = 1;
+    } else if (g === 'memory') {
+      const pairs = l ? 8 : 6, cols = 4, rows = pairs * 2 / cols, size = rows === 4 ? 70 : 82;
+      const pool = shuffle(Object.keys(WEAPONS).filter((w) => !['shuriken', 'schleuder'].includes(w))).slice(0, pairs);
+      D.cards = shuffle([...pool, ...pool]).map((w) => ({ w, open: false, done: false })); D.first = -1; D.miss = 0; D.maxMiss = l === 0 ? 99 : l === 1 ? 12 : 9;
+      D.cards.forEach((c, i) => MG.btns.push({ x: cx - cols * (size + 8) / 2 + (i % cols) * (size + 8), y: 140 + Math.floor(i / cols) * (size + 8), w: size, h: size, card: i, act: () => memFlip(i) }));
+    } else if (g === 'code') {
+      const n = l ? 6 : 5, len = l ? 4 : 3;
+      D.cols = ['#ff4d6d', '#ffd23f', '#4d8bff', '#7CFF6B', '#b388ff', '#ff9f40'].slice(0, n);
+      D.code = shuffle([...Array(n).keys()]).slice(0, len); D.len = len; D.guess = []; D.rows = []; D.max = l === 2 ? 8 : 10;
+      D.cols.forEach((c, i) => MG.btns.push({ x: cx - 210 + i * 62, y: 470, w: 54, h: 54, color: i, act: () => { if (D.guess.length < D.len && !D.guess.includes(i)) { D.guess.push(i); SFX.coin(); } } }));
+      MG.btns.push({ x: cx + 170, y: 470, w: 54, h: 54, label: '⌫', act: () => { D.guess.pop(); } });
+      MG.btns.push({ x: cx + 232, y: 470, w: 64, h: 54, label: 'OK', act: codeCheck });
+    } else if (g === 'simon') {
+      D.target = [5, 7, 9][l]; D.seq = [Math.floor(Math.random() * 4)]; D.inp = 0; D.show = 0; D.showT = 0; D.flash = -1; D.flashT = 0;
+      const cols = ['#ff4d6d', '#ffd23f', '#4d8bff', '#7CFF6B'];
+      for (let i = 0; i < 4; i++) MG.btns.push({ x: cx - 150 + (i % 2) * 154, y: 160 + Math.floor(i / 2) * 154, w: 146, h: 146, pad: i, color: cols[i], act: () => simonPress(i) });
+      MG.lock = 1; D.phase = 'show'; D.showT = -40;
+    } else if (g === 'ordnen') {
+      const sets = [
+        { q: 'Bring die Zeitalter in die richtige Reihenfolge – vom ältesten zum neuesten!', items: shuffle(ERAS.slice(0, -1).map((e) => e.name)).slice(0, 4 + l).sort((a, b) => ERAS.findIndex((e) => e.name === a) - ERAS.findIndex((e) => e.name === b)) },
+        { q: 'OSI-Modell: von Schicht 1 bis nach oben!', items: ['Bitübertragung', 'Sicherung', 'Vermittlung', 'Transport', 'Sitzung', 'Darstellung', 'Anwendung'].slice(0, 4 + l + (l ? 1 : 0)) },
+        { q: 'Datenmengen: von klein nach groß!', items: ['Bit', 'Byte', 'Kilobyte', 'Megabyte', 'Gigabyte', 'Terabyte'].slice(0, 4 + l) },
+        { q: 'Binärzahlen: von klein nach groß!', items: shuffle([1, 3, 5, 6, 8, 10, 12, 15]).slice(0, 4 + l).sort((a, b) => a - b).map((v) => v.toString(2).padStart(4, '0')) },
+      ];
+      const s = sets[MG.k % sets.length]; D.q = s.q; D.items = s.items; D.done = [];
+      shuffle([...s.items]).forEach((it, i) => MG.btns.push({ x: cx - 200 + (i % 2) * 215, y: 250 + Math.floor(i / 2) * 64, w: 205, h: 56, label: it, act: () => ordnenPick(it) }));
+    } else if (g === 'schiebe') {
+      D.t = [1, 2, 3, 4, 5, 6, 7, 8, 0]; let gap = 8, prev = -1;
+      for (let m = 0; m < [14, 22, 32][l] || D.t.join() === '1,2,3,4,5,6,7,8,0'; m++) {
+        const nb = [gap - 3, gap + 3, gap % 3 ? gap - 1 : -1, gap % 3 < 2 ? gap + 1 : -1].filter((q) => q >= 0 && q < 9 && q !== prev);
+        const q = pick(nb); D.t[gap] = D.t[q]; D.t[q] = 0; prev = gap; gap = q;
+      }
+      D.moves = 0;
+      for (let i = 0; i < 9; i++) MG.btns.push({ x: cx - 135 + (i % 3) * 90, y: 170 + Math.floor(i / 3) * 90, w: 86, h: 86, slot: i, act: () => schiebeMove(i) });
+      MG.sel = 4;
+    } else if (g === 'kabel') {
+      const sets = [
+        [['HTTP', '80'], ['HTTPS', '443'], ['SSH', '22'], ['DNS', '53'], ['FTP', '21'], ['SMTP', '25']],
+        [['A (hex)', '10'], ['F (hex)', '15'], ['10 (hex)', '16'], ['1F (hex)', '31'], ['64 (hex)', '100'], ['FF (hex)', '255']],
+        ERAS.slice(0, -1).map((e) => [e.name, WEAPONS[e.weapons[0]].name]),
+      ];
+      const pairs = shuffle([...sets[MG.k % sets.length]]).slice(0, 4 + l);
+      D.left = pairs.map((p) => p[0]); D.right = shuffle(pairs.map((p) => p[1])); D.ok = Object.fromEntries(pairs); D.links = {}; D.pickL = null; D.miss = 0; D.maxMiss = 3;
+      D.colors = ['#ff4d6d', '#ffd23f', '#4d8bff', '#7CFF6B', '#b388ff', '#ff9f40'];
+      D.left.forEach((t, i) => MG.btns.push({ x: cx - 210, y: 150 + i * 62, w: 170, h: 52, label: t, side: 'L', i, act: () => kabelL(i) }));
+      D.right.forEach((t, i) => MG.btns.push({ x: cx + 75, y: 150 + i * 62, w: 170, h: 52, label: t, side: 'R', i, act: () => kabelR(i) }));
+    }
+  }
+  function mgWin(skipped) {
+    MG.phase = 'won'; MG.t = 0; MG.btns = [];
+    if (!skipped) { olphSay(pick(OLPH_WIN), 'angry'); SFX.clear(); }
+    run.score += skipped ? 0 : 500;
+  }
+  function mgLose(text) { MG.phase = 'lost'; MG.t = 0; MG.tries++; olphSay(text || pick(OLPH_OOPS), 'laugh'); SFX.over(); }
+  function mgDone() {   // Olphilver geschlagen: weiter ins nächste Zeitalter (nach Bosslevel erst in den Laden)
+    MG = null; run.eraClean = true; music.on = false;
+    if ((levelIndex + 1) % 10 === 0 && levelIndex + 1 < LEVELS.length) openShop(levelIndex + 1); else startLevel(levelIndex + 1, true);
+  }
+  // ---------- die einzelnen Spiele
+  function tttWinner(b) {
+    for (const [a, c, d] of [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]) if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+    return b.every((v) => v) ? 'draw' : null;
+  }
+  function tttMove(i) {
+    const D = MG.d; if (D.turn !== 'X' || D.b[i]) return;
+    D.b[i] = 'X'; SFX.coin(); if (tttEnd()) return; D.turn = 'O'; MG.lock = 30;
+  }
+  function tttOlph() {   // Olphilver spielt – manchmal schlau, manchmal trottelig
+    const D = MG.d, l = MG.lvl, free = D.b.map((v, i) => v ? -1 : i).filter((i) => i >= 0);
+    const finds = (who) => free.find((i) => { const b = [...D.b]; b[i] = who; return tttWinner(b) === who; });
+    let m = Math.random() < [0.7, 0.85, 1][l] ? finds('O') : undefined;
+    if (m === undefined && Math.random() < [0.55, 0.75, 0.9][l]) m = finds('X');
+    if (m === undefined && l > 0 && !D.b[4]) m = 4;
+    if (m === undefined) m = pick(free);
+    D.b[m] = 'O'; SFX.throw(); D.turn = 'X'; tttEnd();
+  }
+  function tttEnd() {
+    const w = tttWinner(MG.d.b); if (!w) return false;
+    if (w === 'X') mgWin(); else if (w === 'O') mgLose('Gewonnen! ICH! Hahaha! Nochmal?'); else mgLose('Unentschieden zählt nicht! Ich hab doch gesagt: Zeitverschwendung!');
+    return true;
+  }
+  function sspPlay(h) {
+    const D = MG.d, o = pick(['stein', 'schere', 'papier']), beats = { stein: 'schere', schere: 'papier', papier: 'stein' };
+    D.last = [h, o]; MG.lock = 50;
+    if (h === o) olphSay('Unentschieden. Gääähn. Nochmal!');
+    else if (beats[h] === o) { D.me++; olphSay(pick(['Autsch!', 'Das war Zufall!', 'Hey! Ich war noch nicht so weit!']), 'angry'); SFX.coin(); }
+    else { D.him++; olphSay(pick(['Hehe! Punkt für mich!', 'Zack! Wieder Zeit verschwendet!', 'Ich bin ein Genie!']), 'laugh'); SFX.hurt(); }
+    if (D.me >= D.need) MG.later = () => mgWin(); else if (D.him >= D.need) MG.later = () => mgLose('Ich hab gewonnen! Das ganze Spiel nochmal!');
+  }
+  function memFlip(i) {
+    const D = MG.d, c = D.cards[i]; if (c.open || c.done) return;
+    c.open = true; SFX.coin();
+    if (D.first < 0) { D.first = i; return; }
+    const a = D.cards[D.first]; D.first = -1;
+    if (a.w === c.w) { a.done = c.done = true; SFX.check(); if (D.cards.every((x) => x.done)) { MG.later = () => mgWin(); MG.lock = 30; } }
+    else {
+      D.miss++; MG.lock = 45; MG.later = () => { a.open = c.open = false; if (D.miss >= D.maxMiss) mgLose('Zu viele Fehler! Ich mische neu. Hihihi!'); };
+      if (D.miss % 3 === 0) olphSay(pick(OLPH_OOPS), 'laugh');
+    }
+  }
+  function codeCheck() {
+    const D = MG.d; if (D.guess.length < D.len) { olphSay(`Ihr braucht ${D.len} Farben! Gääähn.`); return; }
+    let black = 0, white = 0;
+    D.guess.forEach((v, i) => { if (D.code[i] === v) black++; else if (D.code.includes(v)) white++; });
+    D.rows.push({ g: [...D.guess], black, white }); D.guess = [];
+    if (black === D.len) { mgWin(); return; }
+    SFX.clang();
+    if (D.rows.length >= D.max) mgLose('Keine Versuche mehr! Ich stelle einen neuen Code ein. Hehehe.');
+    else if (D.rows.length === Math.floor(D.max / 2)) olphSay('Schon die Hälfte der Versuche verbraucht … ich hab ja Zeit!', 'laugh');
+  }
+  function simonPress(i) {
+    const D = MG.d; if (D.phase !== 'input') return;
+    D.flash = i; D.flashT = 14; beep('triangle', [330, 392, 494, 587][i], [330, 392, 494, 587][i], 0.2, 0.12);
+    if (D.seq[D.inp] !== i) { mgLose('Falsch! Olphilver sagt: von vorn!'); return; }
+    D.inp++;
+    if (D.inp >= D.seq.length) {
+      if (D.seq.length >= D.target) { MG.later = () => mgWin(); MG.lock = 25; return; }
+      D.seq.push(Math.floor(Math.random() * 4)); D.phase = 'show'; D.show = 0; D.showT = -45; D.inp = 0; MG.lock = 1;
+    }
+  }
+  function ordnenPick(it) {
+    const D = MG.d; if (D.done.includes(it)) return;
+    if (D.items[D.done.length] === it) { D.done.push(it); SFX.coin(); if (D.done.length === D.items.length) { MG.later = () => mgWin(); MG.lock = 30; } }
+    else { D.done = []; MG.tries++; olphSay(pick(['Falsch! Alles von vorn!', 'Hihihi, nein! Nochmal von vorn!', 'Gääähn. Falsch. Von vorn.']), 'laugh'); SFX.hurt(); }
+  }
+  function schiebeMove(i) {
+    const D = MG.d, gap = D.t.indexOf(0), r = Math.floor(i / 3), c = i % 3, gr = Math.floor(gap / 3), gc = gap % 3;
+    if (Math.abs(r - gr) + Math.abs(c - gc) !== 1) { olphSay('Da ist keine Lücke! Hahaha!', 'laugh'); return; }
+    D.t[gap] = D.t[i]; D.t[i] = 0; D.moves++; SFX.land();
+    if (D.t.join() === '1,2,3,4,5,6,7,8,0') { MG.later = () => mgWin(); MG.lock = 30; }
+    else if (D.moves % 25 === 0) olphSay(`${D.moves} Züge! So viel verschwendete Zeit … herrlich!`, 'laugh');
+  }
+  function kabelL(i) { const D = MG.d; if (D.links[i] !== undefined) return; D.pickL = i; SFX.coin(); const r = MG.btns.findIndex((b) => b.side === 'R' && !Object.values(D.links).includes(b.i)); if (r >= 0) MG.sel = r; }
+  function kabelR(j) {
+    const D = MG.d; if (D.pickL === null) { olphSay('Erst links ein Kabel nehmen! Gääähn.'); return; }
+    if (Object.values(D.links).includes(j)) return;
+    if (D.ok[D.left[D.pickL]] === D.right[j]) {
+      D.links[D.pickL] = j; D.pickL = null; SFX.check();
+      if (Object.keys(D.links).length === D.left.length) { MG.later = () => mgWin(); MG.lock = 30; return; }
+      const l2 = MG.btns.findIndex((b) => b.side === 'L' && D.links[b.i] === undefined); if (l2 >= 0) MG.sel = l2;
+    } else { D.miss++; D.pickL = null; D.wrong = 20; SFX.hurt(); if (D.miss >= D.maxMiss) mgLose('Kurzschluss! Ich stecke alles wieder um. Hahaha!'); else olphSay(pick(OLPH_OOPS), 'laugh'); }
+  }
+  // ---------- Steuerung (Tastatur, Steuerkreise, Controller, Antippen)
+  function mgMove(dx, dy) {
+    if (!MG || !MG.btns.length) return;
+    const a = MG.btns[MG.sel] || MG.btns[0], ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+    let best = -1, bd = 1e9;
+    MG.btns.forEach((b, i) => {
+      if (i === MG.sel) return;
+      const vx = b.x + b.w / 2 - ax, vy = b.y + b.h / 2 - ay;
+      if (dx && Math.sign(vx) !== dx) return; if (dy && Math.sign(vy) !== dy) return;
+      if (dx && Math.abs(vx) < 4) return; if (dy && Math.abs(vy) < 4) return;
+      const d = dx ? Math.abs(vx) + Math.abs(vy) * 2.5 : Math.abs(vy) + Math.abs(vx) * 2.5;
+      if (d < bd) { bd = d; best = i; }
+    });
+    if (best >= 0) { MG.sel = best; SFX.land(); }
+  }
+  function mgConfirm() {
+    if (!MG) return;
+    if (MG.phase === 'won') { if (MG.t > 30) mgDone(); return; }
+    if (MG.phase === 'lost') { if (MG.t > 30) { MG.phase = 'play'; mgSetup(); } return; }
+    if (MG.lock > 0) return;
+    const b = MG.btns[MG.sel]; if (b) b.act();
+  }
+  function mgTap(x, y) {
+    if (!MG) return;
+    if (MG.phase === 'won' || MG.phase === 'lost') { mgConfirm(); return; }
+    const i = MG.btns.findIndex((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+    if (i >= 0) { MG.sel = i; mgConfirm(); }
+  }
+  function updateOlph() {
+    const D = MG.d || {}; MG.t++; MG.sayT++;
+    if (MG.lock > 0 && --MG.lock === 0) {
+      if (MG.later) { const f = MG.later; MG.later = null; f(); }
+      if (MG && MG.game === 'ttt' && MG.phase === 'play' && D.turn === 'O') tttOlph();
+    }
+    if (MG && MG.game === 'simon' && MG.phase === 'play' && D.phase === 'show') {   // Olphilver zeigt die Reihenfolge vor
+      D.showT++;
+      if (D.showT >= 0 && D.showT % 34 === 0) {
+        const i = D.showT / 34;
+        if (i < D.seq.length) { D.flash = D.seq[i]; D.flashT = 22; beep('triangle', [330, 392, 494, 587][D.flash], [330, 392, 494, 587][D.flash], 0.25, 0.12); }
+        else { D.phase = 'input'; MG.lock = 0; }
+      }
+    }
+    if (D.flashT > 0) D.flashT--;
+    if (D.wrong > 0) D.wrong--;
+  }
+  // ---------- Bild
+  function drawOlph(x, y, s, mood, t) {   // Olphilver: rundlich, Bademantel mit Uhren, Schlafmütze, Lade-Zepter
+    ctx.save(); ctx.translate(x, y + Math.sin(t * 0.05) * 3); ctx.scale(s, s);
+    const angry = mood === 'angry', laugh = mood === 'laugh', yawn = (t % 400) > 330 && !angry && !laugh;
+    ell(-12, -2, 11, 5, '#c8102e'); ell(12, -2, 11, 5, '#c8102e'); dot(-20, -4, 3, '#ffd23f'); dot(20, -4, 3, '#ffd23f');   // Pantoffeln mit Bommel
+    ctx.fillStyle = '#6a3aa0'; ctx.beginPath(); ctx.moveTo(-26, -4); ctx.quadraticCurveTo(-34, -60, -14, -78); ctx.lineTo(14, -78); ctx.quadraticCurveTo(34, -60, 26, -4); ctx.fill();   // Bademantel
+    ell(0, -42, 28, 30, '#7a4ab8');   // Bauch
+    for (const [cx2, cy2] of [[-14, -30], [10, -50], [6, -16], [-16, -60]]) { dot(cx2, cy2, 5, '#ffd23f'); dot(cx2, cy2, 3.6, '#fff6e0'); stroke('#3a2a5a', 0.8, cx2, cy2, cx2, cy2 - 2.5); stroke('#3a2a5a', 0.8, cx2, cy2, cx2 + 2, cy2); }
+    stroke('#ffd23f', 3, -22, -36, 22, -36);   // Gürtel
+    stroke('#6a3aa0', 9, 20, -64, 38, -44 + Math.sin(t * 0.1) * 3);   // Arm mit Lade-Zepter
+    stroke('#8a6a3a', 3, 38, -44, 44, -96);
+    ctx.save(); ctx.translate(44, -104); ctx.rotate(t * 0.15); for (let k = 0; k < 8; k++) { ctx.rotate(Math.PI / 4); dot(0, -9, 2.4, `rgba(94,242,255,${0.2 + k / 9})`); } ctx.restore();
+    stroke('#6a3aa0', 9, -20, -64, -34, -46); dot(-36, -44, 6, '#e8b88a');
+    dot(0, -94, 20, '#f0c8a0');   // Kopf
+    ell(-8, -90, 5, 4, '#ffb0a0'); ell(10, -90, 5, 4, '#ffb0a0');   // Bäckchen
+    if (angry) { ctx.save(); ctx.globalAlpha *= 0.35; dot(0, -94, 20, '#ff2b2b'); ctx.restore(); }
+    const ey = -98, lid = yawn ? 3.5 : angry ? 1.5 : 2.2;   // verschlafene Augen
+    for (const ex of [-7, 7]) { ell(ex, ey, 4, 3.5, '#ffffff'); dot(ex + 1, ey + 0.5, 1.8, '#1b1530'); ctx.fillStyle = '#d8a888'; ctx.fillRect(ex - 4.5, ey - 4, 9, lid); }
+    if (angry) { stroke('#3a2a1a', 2, -12, -105, -3, -101); stroke('#3a2a1a', 2, 12, -105, 3, -101); }
+    // Schnurrbart (gezwirbelt)
+    ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, -86); ctx.quadraticCurveTo(sx * 10, -90, sx * 16, -84); ctx.quadraticCurveTo(sx * 20, -80, sx * 17, -78); ctx.stroke(); }
+    if (yawn) ell(0, -79, 4, 5, '#5a1a2a'); else if (laugh) { ctx.fillStyle = '#5a1a2a'; ctx.beginPath(); ctx.arc(0, -81, 6, 0, Math.PI); ctx.fill(); } else stroke('#5a1a2a', 1.6, -4, -80, 4, -80);
+    ctx.fillStyle = '#4a2a80'; ctx.beginPath(); ctx.moveTo(-19, -104); ctx.quadraticCurveTo(-6, -138, 26, -132 + Math.sin(t * 0.08) * 3); ctx.lineTo(18, -122); ctx.quadraticCurveTo(10, -116, 19, -104); ctx.fill();   // Schlafmütze
+    rr(-20, -108, 40, 7, 3, '#ffffff');
+    ctx.save(); ctx.translate(28, -132 + Math.sin(t * 0.08) * 3); poly('#ffd23f', -5, -6, 5, -6, 0, 0); poly('#ffd23f', -5, 6, 5, 6, 0, 0); ctx.restore();   // Sanduhr-Bommel
+    if (yawn) for (let k = 0; k < 3; k++) outlined('z', 30 + k * 8, -120 - k * 10 - (t % 60) * 0.2, 10 + k * 3, '#d8e8ff', 0.7, 'center', UIF);
+    ctx.restore();
+  }
+  function bubble(x, y, w, text, size = 16, tail = 'left') {   // Sprechblase mit Zeilenumbruch
+    ctx.save(); ctx.font = UIF(size); const words = text.split(' '), lines = []; let line = '';
+    for (const wd of words) { const test = line ? line + ' ' + wd : wd; if (ctx.measureText(test).width > w - 28 && line) { lines.push(line); line = wd; } else line = test; }
+    if (line) lines.push(line);
+    const h = lines.length * (size + 5) + 20;
+    ctx.fillStyle = 'rgba(255,255,255,.96)'; roundRect(ctx, x, y, w, h, 16); ctx.fill();
+    ctx.beginPath(); if (tail === 'left') { ctx.moveTo(x + 24, y + h - 2); ctx.lineTo(x + 6, y + h + 18); ctx.lineTo(x + 46, y + h - 2); } else { ctx.moveTo(x - 2, y + 18); ctx.lineTo(x - 18, y + 30); ctx.lineTo(x - 2, y + 34); } ctx.fill();
+    ctx.fillStyle = '#1b1530'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    lines.forEach((ln, i) => ctx.fillText(ln, x + 14, y + 11 + i * (size + 5)));
+    ctx.restore(); return h;
+  }
+  function drawHand(kind, x, y, s = 1) {   // Schere / Stein / Papier
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    if (kind === 'stein') { poly('#8a8fa0', -20, 10, -16, -12, 0, -20, 18, -10, 22, 8, 6, 18, -12, 18); dot(-4, -6, 4, '#b0b5c4'); }
+    else if (kind === 'papier') { rr(-16, -20, 32, 40, 3, '#f8f4e8'); for (let k = -12; k <= 12; k += 6) stroke('#9aa3b8', 1.5, -11, k, 11, k); }
+    else { for (const s2 of [-1, 1]) { ctx.save(); ctx.rotate(s2 * 0.35); rr(-3, -24, 6, 26, 3, '#c9d1dc'); ctx.restore(); } dot(-7, 12, 7, '#ff4d6d'); dot(7, 12, 7, '#ff4d6d'); dot(-7, 12, 3.5, '#1b1530'); dot(7, 12, 3.5, '#1b1530'); }
+    ctx.restore();
+  }
+  function drawOlphScene() {
+    if (L) { drawBackground(); ctx.drawImage(tileLayer, Math.round(cam), 0, W, H, 0, 0, W, H); }
+    ctx.fillStyle = 'rgba(20,10,36,.84)'; ctx.fillRect(0, 0, W, H);
+    for (let k = 0; k < 7; k++) clockFace(ctx, ((k * 230 + frame * 0.4) % (W + 120)) - 60, 40 + (k % 3) * 200 + Math.sin(frame * 0.02 + k) * 20, 16 + (k % 3) * 6, 'rgba(232,160,255,.25)', 'rgba(255,255,255,.05)', 'rgba(232,160,255,.3)');
+    const cx = W / 2 + 90, D = MG.d || {};
+    drawOlph(W / 2 - 300, 526, 2.25, MG.mood, frame);
+    outlined(OLPH_NAME, W / 2 - 300, 552, 17, '#e8a0ff');
+    outlined('HERR DER ZEITVERSCHWENDUNG', W / 2 - 300, 570, 11, '#e8a0ff');
+    outlined(MG.phase === 'wahl' ? 'ZEITVERSCHWENDUNGSSCHUTZ!' : OLPH_TITLE[MG.game], cx, 70, MG.phase === 'wahl' ? 24 : 30, '#ffd23f');
+    bubble(W / 2 - 390, 92, 262, MG.say, 15);
+    const selB = MG.btns[MG.sel], btnBox = (b, i, fill, stroke2) => {
+      const on = i === MG.sel && MG.phase !== 'won' && MG.phase !== 'lost';
+      ctx.save(); ctx.fillStyle = fill; roundRect(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
+      ctx.strokeStyle = on ? '#ffd23f' : stroke2 || 'rgba(255,255,255,.25)'; ctx.lineWidth = on ? 4 : 2; if (on) { ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 12; } ctx.stroke(); ctx.restore();
+    };
+    const label = (b, size = 18, col = '#ffffff') => outlined(b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, size, col, 1, 'center', UIF);
+    const g = MG.game;
+    if (MG.phase === 'wahl') {
+      outlined('Kein einziges Mal gestorben – ihr dürft überspringen!', cx + 20, 250, 17, '#7CFF6B', 1, 'center', UIF);
+      MG.btns.forEach((b, i) => { btnBox(b, i, i ? 'rgba(40,120,60,.9)' : 'rgba(60,44,90,.95)'); label(b, 16); });
+    } else if (!MG.d) { /* übersprungen: kein Spielfeld */
+    } else if (g === 'ttt') {
+      MG.btns.forEach((b, i) => { btnBox(b, i, 'rgba(30,22,48,.9)'); const v = D.b[b.cell], mx = b.x + b.w / 2, my = b.y + b.h / 2;
+        if (v === 'X') { stroke('#5ef2ff', 8, mx - 22, my - 22, mx + 22, my + 22); stroke('#5ef2ff', 8, mx + 22, my - 22, mx - 22, my + 22); }
+        else if (v === 'O') { ctx.save(); ctx.strokeStyle = '#e8a0ff'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(mx, my, 24, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } });
+      outlined(D.turn === 'O' && MG.phase === 'play' ? 'Olphilver überlegt … gääähn …' : 'Du bist X', cx, 470, 18, '#d8e8ff', 1, 'center', UIF);
+    } else if (g === 'ssp') {
+      outlined(`DU  ${D.me}  :  ${D.him}  OLPHILVER`, cx, 130, 30, '#ffffff'); outlined(`Wer zuerst ${D.need} Punkte hat, gewinnt`, cx, 162, 15, '#d8e8ff', 1, 'center', UIF);
+      if (D.last) { drawHand(D.last[0], cx - 90, 240, 1.8); outlined('gegen', cx, 244, 18, '#d8e8ff', 1, 'center', UIF); drawHand(D.last[1], cx + 90, 240, 1.8); }
+      MG.btns.forEach((b, i) => { btnBox(b, i, 'rgba(30,22,48,.9)'); drawHand(b.hand, b.x + b.w / 2, b.y + 52, 1.3); outlined(b.hand.toUpperCase(), b.x + b.w / 2, b.y + b.h - 14, 14, '#ffffff', 1, 'center', UIF); });
+    } else if (g === 'memory') {
+      MG.btns.forEach((b, i) => { const c = D.cards[b.card]; btnBox(b, i, c.done ? 'rgba(40,120,60,.85)' : c.open ? 'rgba(240,236,224,.95)' : 'rgba(74,42,128,.95)');
+        if (c.open || c.done) weaponIcon(c.w, b.x + b.w / 2, b.y + b.h / 2, b.w / 70); else { clockFace(ctx, b.x + b.w / 2, b.y + b.h / 2, b.w * 0.28, '#ffd23f', '#3a2a5a', '#e8a0ff'); } });
+      if (D.maxMiss < 99) outlined(`Fehler: ${D.miss} / ${D.maxMiss}`, cx, 125, 16, '#ff9f40', 1, 'center', UIF);
+    } else if (g === 'code') {
+      const top = 112, rowH = Math.min(30, 330 / D.max);
+      outlined(`Versuch ${Math.min(D.rows.length + 1, D.max)} von ${D.max}  ·  ${D.len} Farben, jede nur einmal`, cx, top - 6, 14, '#d8e8ff', 1, 'center', UIF);
+      for (let r = 0; r < D.max; r++) {
+        const y = top + 14 + r * rowH, row = D.rows[r], g2 = r === D.rows.length ? D.guess : row ? row.g : [];
+        ctx.save(); ctx.fillStyle = r === D.rows.length ? 'rgba(255,210,63,.12)' : 'rgba(255,255,255,.05)'; roundRect(ctx, cx - 170, y, 340, rowH - 4, 8); ctx.fill(); ctx.restore();
+        for (let k = 0; k < D.len; k++) dot(cx - 140 + k * 40, y + rowH / 2 - 2, rowH * 0.32, g2[k] !== undefined ? D.cols[g2[k]] : 'rgba(255,255,255,.12)');
+        if (row) { for (let k = 0; k < row.black + row.white; k++) dot(cx + 60 + k * 18, y + rowH / 2 - 2, 6, k < row.black ? '#1b1b20' : '#ffffff'); if (row.black) for (let k = 0; k < row.black; k++) { ctx.save(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx + 60 + k * 18, y + rowH / 2 - 2, 6, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } }
+      }
+      MG.btns.forEach((b, i) => { btnBox(b, i, b.color !== undefined ? D.cols[b.color] : 'rgba(60,44,90,.95)'); if (b.label) label(b, 20); else if (D.guess.includes(b.color)) outlined('✓', b.x + b.w / 2, b.y + b.h / 2, 20, '#1b1530'); });
+    } else if (g === 'simon') {
+      outlined(D.phase === 'show' ? 'Pass auf …' : `Jetzt du! (${D.inp} / ${D.seq.length})`, cx, 130, 20, '#ffffff', 1, 'center', UIF);
+      outlined(`Ziel: ${D.target} Farben nacheinander`, cx, 480, 15, '#d8e8ff', 1, 'center', UIF);
+      MG.btns.forEach((b, i) => { const lit = D.flashT > 0 && D.flash === b.pad; ctx.save(); ctx.globalAlpha = lit ? 1 : 0.42; if (lit) { ctx.shadowColor = b.color; ctx.shadowBlur = 30; } ctx.fillStyle = b.color; roundRect(ctx, b.x, b.y, b.w, b.h, 22); ctx.fill(); ctx.restore();
+        if (i === MG.sel && D.phase === 'input') { ctx.save(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; roundRect(ctx, b.x, b.y, b.w, b.h, 22); ctx.stroke(); ctx.restore(); } });
+    } else if (g === 'ordnen') {
+      outlined(D.q, cx, 112, 16, '#ffffff', 1, 'center', UIF);
+      D.items.forEach((_, i) => { const x = cx - 210 + i * (440 / D.items.length); ctx.save(); ctx.fillStyle = i < D.done.length ? 'rgba(40,120,60,.9)' : 'rgba(255,255,255,.08)'; roundRect(ctx, x, 140, 440 / D.items.length - 6, 74, 8); ctx.fill(); ctx.restore();
+        outlined(`${i + 1}.`, x + 14, 156, 14, '#ffd23f', 1, 'left', UIF); if (i < D.done.length) wrapLabel(D.done[i], x + (440 / D.items.length - 6) / 2, 186, 440 / D.items.length - 12); });
+      MG.btns.forEach((b, i) => { const used = D.done.includes(b.label); btnBox(b, i, used ? 'rgba(255,255,255,.05)' : 'rgba(60,44,90,.95)'); label(b, 16, used ? 'rgba(255,255,255,.3)' : '#ffffff'); });
+    } else if (g === 'schiebe') {
+      outlined(`Züge: ${D.moves}`, cx, 140, 18, '#d8e8ff', 1, 'center', UIF);
+      MG.btns.forEach((b, i) => { const v = D.t[b.slot]; if (!v) { btnBox(b, i, 'rgba(0,0,0,.35)'); return; } btnBox(b, i, v === b.slot + 1 ? 'rgba(40,120,60,.92)' : 'rgba(122,74,184,.95)'); outlined(String(v), b.x + b.w / 2, b.y + b.h / 2, 38, '#ffffff'); });
+    } else if (g === 'kabel') {
+      outlined(`Fehler: ${D.miss} / ${D.maxMiss}`, cx, 125, 16, '#ff9f40', 1, 'center', UIF);
+      for (const [li, rj] of Object.entries(D.links)) { const a = MG.btns.find((b) => b.side === 'L' && b.i === +li), b2 = MG.btns.find((b) => b.side === 'R' && b.i === rj);
+        if (!a || !b2) continue;
+        ctx.save(); ctx.strokeStyle = D.colors[li % 6]; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(a.x + a.w, a.y + a.h / 2); ctx.bezierCurveTo(a.x + a.w + 50, a.y + a.h / 2, b2.x - 50, b2.y + b2.h / 2, b2.x, b2.y + b2.h / 2); ctx.stroke(); ctx.restore(); }
+      if (D.pickL !== null && selB && MG.btns.some((b) => b.side === 'L' && b.i === D.pickL)) { const a = MG.btns.find((b) => b.side === 'L' && b.i === D.pickL); ctx.save(); ctx.setLineDash([8, 6]); ctx.strokeStyle = D.colors[D.pickL % 6]; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(a.x + a.w, a.y + a.h / 2); ctx.lineTo(selB.x, selB.y + selB.h / 2); ctx.stroke(); ctx.restore(); }
+      MG.btns.forEach((b, i) => { const done = b.side === 'L' ? D.links[b.i] !== undefined : Object.values(D.links).includes(b.i);
+        btnBox(b, i, done ? 'rgba(40,120,60,.9)' : b.side === 'L' && D.pickL === b.i ? 'rgba(160,120,30,.95)' : D.wrong > 0 && b.side === 'R' && i === MG.sel ? 'rgba(200,40,60,.9)' : 'rgba(60,44,90,.95)'); label(b, 15);
+        dot(b.side === 'L' ? b.x + b.w : b.x, b.y + b.h / 2, 6, D.colors[(b.side === 'L' ? b.i : (Object.entries(D.links).find(([, r]) => r === b.i) || [0])[0]) % 6]); });
+    }
+    if (MG.phase === 'won' || MG.phase === 'lost') {
+      panel(cx - 220, 230, 440, 150);
+      outlined(MG.phase === 'won' ? 'GESCHAFFT!' : 'VERLOREN!', cx, 282, 40, MG.phase === 'won' ? '#7CFF6B' : '#ff4d6d');
+      outlined(MG.phase === 'won' ? 'ENTER / TIPPEN: weiter durchs Zeitportal' : 'ENTER / TIPPEN: nochmal versuchen (kostet nichts)', cx, 338, 16, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4, 'center', UIF);
+    } else if (MG.phase === 'play') {
+      outlined(touchMode ? 'Antippen oder linker Kreis + Knopf' : 'Pfeiltasten + Enter / Leertaste (Controller: Steuerkreuz + A)', cx, H - 24, 13, '#9aa3b8', 1, 'center', UIF);
+    }
+    if (MG.phase === 'lost') drawPatrickTip(PATRICK_GAME_TIP[g], MG.t, L ? L.era : ERA_MA, cx - 250, 392);
+  }
+  function wrapLabel(text, x, y, w) {
+    let size = 13; ctx.save(); ctx.font = UIF(size); const words = String(text).split(' ');
+    while (size > 8 && Math.max(...words.map((wd) => ctx.measureText(wd).width)) > w) ctx.font = UIF(--size);   // lange Wörter kleiner schreiben
+    let line = '', lines = [];
+    for (const wd of words) { const test = line ? line + ' ' + wd : wd; if (ctx.measureText(test).width > w && line) { lines.push(line); line = wd; } else line = test; } if (line) lines.push(line);
+    lines.forEach((ln, i) => outlined(ln, x, y + (i - (lines.length - 1) / 2) * (size + 2), size, '#ffffff', 1, 'center', UIF)); ctx.restore();
+  }
+
+  // =====================================================================
+  //  PATRICK – gibt mit Bier in der Hand lustige Tipps (im Kostüm des Zeitalters)
+  // =====================================================================
+  const PATRICK = {   // Hemd, Hose, Hut, Getränk
+    dino: ['#c8702a', '#6b3a1a', 'knochen', 'kokos'], stein: ['#9a6a3a', '#5a3a1f', 'fell', 'steinkrug'], antike: ['#f2efe6', '#c8a060', 'lorbeer', 'kelch'],
+    atlantis: ['#2a8aa8', '#1f4a5a', 'schnorchel', 'muschel'], china: ['#c8102e', '#1b1b20', 'stirnband', 'krug'], wikinger: ['#6a7286', '#5a3a1f', 'hoerner', 'horn'],
+    mittelalter: ['#3a8a4a', '#6b4a2b', 'barde', 'krug'], orient: ['#2ec4b6', '#f2efe6', 'fes', 'krug'], samurai: ['#2a3a6a', '#1b1b20', 'hachimaki', 'krug'],
+    azteken: ['#e8c070', '#7a5230', 'feder', 'kokos'], piraten: ['#f2efe6', '#3a2a22', 'kopftuch', 'flasche'], westen: ['#8a5a33', '#3a4a6a', 'cowboy', 'flasche'],
+    industrie: ['#5a5f6e', '#2f4f8a', 'schiebermuetze', 'flasche'], luftschiff: ['#8a5a2b', '#5a4a3a', 'fliegerbrille', 'flasche'], heute: ['#ff6b8a', '#3a4a6a', 'kappe', 'dose'],
+    netz: ['#1b2a20', '#14161c', 'vr', 'dose'], zukunft: ['#2a2e3a', '#1e2230', 'visier', 'neon'], weltraum: ['#f2f4f8', '#c9d1dc', 'raumhelm', 'neon'],
+    alien: ['#2a5a3a', '#1b2a20', 'antennen', 'neon'], zeit: ['#5a2a8a', '#2a2a3a', 'zylinder', 'neon'],
+  };
+  function drawPatrick(x, y, era, s = 1, t = frame) {   // Blick nach rechts, Ursprung = Füße
+    const key = ERA_KEY(era), P2 = PATRICK[key] || PATRICK.mittelalter;
+    ctx.save(); ctx.translate(x, y); ctx.scale(-s, s);
+    human({ skin: '#e8b88a', body: P2[0], legs: P2[1], boots: '#2a1e14', body2: 'rgba(0,0,0,.15)' }, 0);
+    ctx.fillStyle = 'rgba(90,60,40,.45)'; ctx.beginPath(); ctx.arc(-1, -32, 6.5, 0.2, Math.PI - 0.2); ctx.fill();   // Dreitagebart
+    ctx.fillStyle = '#4a2e18'; ctx.beginPath(); ctx.arc(-1, -36, 7.6, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();   // Haare
+    stroke('#5a1a2a', 1.2, -5.5, -31.5, -2, -30.8);   // Grinsen
+    // Arm mit Getränk, hebt es zum Prost
+    const up = Math.sin(t * 0.06) > 0.75 ? -6 : 0;
+    stroke('#e8b88a', 4, -6, -22, -13, -26 + up); drinkShape(P2[3], -15, -30 + up);
+    const hx = -1, hy = -38;
+    switch (P2[2]) {
+      case 'knochen': rr(hx - 7, hy - 3, 14, 2.5, 1, '#efe6cf'); dot(hx - 7, hy - 2, 1.8, '#efe6cf'); dot(hx + 7, hy - 2, 1.8, '#efe6cf'); break;
+      case 'fell': ctx.fillStyle = '#9a6a3a'; ctx.beginPath(); ctx.arc(hx, hy + 3, 8.5, Math.PI, 0); ctx.fill(); break;
+      case 'lorbeer': for (let k = -6; k <= 6; k += 3) ell(hx + k, hy + 0.5 + Math.abs(k) * 0.3, 2.2, 1.2, '#3ac08a', k * 0.2); break;
+      case 'schnorchel': rr(hx - 7, hy + 1, 10, 4, 2, 'rgba(160,230,255,.8)'); stroke('#ff9f40', 2, hx + 4, hy + 2, hx + 6, hy - 8); break;
+      case 'stirnband': rr(hx - 8, hy, 16, 2.5, 1, '#ffd23f'); break;
+      case 'hoerner': ctx.fillStyle = '#8a93a6'; ctx.beginPath(); ctx.arc(hx, hy + 3, 7.5, Math.PI, 0); ctx.fill(); poly('#efe6cf', hx - 6, hy, hx - 10, hy - 8, hx - 4, hy - 3); poly('#efe6cf', hx + 6, hy, hx + 10, hy - 8, hx + 4, hy - 3); break;
+      case 'barde': ell(hx, hy - 1, 9, 3, '#3a8a4a'); poly('#ff4d6d', hx + 3, hy - 3, hx + 12, hy - 11, hx + 6, hy - 2); break;
+      case 'fes': rr(hx - 5, hy - 6, 10, 8, 1, '#c8102e'); stroke('#1b1b20', 1, hx, hy - 6, hx + 4, hy - 2); break;
+      case 'hachimaki': rr(hx - 8, hy + 1, 16, 2.5, 1, '#ffffff'); dot(hx - 1, hy + 2, 1.2, '#c8102e'); stroke('#ffffff', 1.5, hx + 8, hy + 2, hx + 12, hy + 6); break;
+      case 'feder': rr(hx - 7, hy + 1, 14, 2.5, 1, '#3ac08a'); ell(hx + 2, hy - 6, 2, 7, '#c8102e', 0.2); break;
+      case 'kopftuch': ctx.fillStyle = '#c8102e'; ctx.beginPath(); ctx.arc(hx, hy + 2, 8, Math.PI, 0); ctx.fill(); poly('#c8102e', hx + 7, hy + 1, hx + 11, hy + 5, hx + 6, hy + 3); break;
+      case 'cowboy': ell(hx, hy + 1, 13, 2.5, '#7a4a20'); rr(hx - 6, hy - 6, 12, 7, 2, '#7a4a20'); break;
+      case 'schiebermuetze': ell(hx, hy + 1, 9, 4, '#4a4e5a'); ell(hx - 7, hy + 2, 5, 1.6, '#4a4e5a'); break;
+      case 'fliegerbrille': ctx.fillStyle = '#6b4220'; ctx.beginPath(); ctx.arc(hx, hy + 2, 8, Math.PI, 0); ctx.fill(); rr(hx - 8, hy, 9, 3.5, 1.5, '#b08a3a'); dot(hx - 5, hy + 1.6, 1.4, '#9fe8ff'); break;
+      case 'kappe': ctx.fillStyle = '#2b5fbf'; ctx.beginPath(); ctx.arc(hx, hy + 2, 8, Math.PI, 0); ctx.fill(); rr(hx + 4, hy, 8, 2.5, 1, '#2b5fbf'); break;
+      case 'vr': rr(hx - 9, hy + 1, 11, 5, 2, '#14161c'); ctx.save(); ctx.shadowColor = '#39ff8a'; ctx.shadowBlur = 6; rr(hx - 8, hy + 2.5, 9, 1.5, 1, '#39ff8a'); ctx.restore(); break;
+      case 'visier': ctx.save(); ctx.shadowColor = '#ff4dd2'; ctx.shadowBlur = 8; rr(hx - 9, hy + 2, 11, 3, 1.5, '#ff4dd2'); ctx.restore(); break;
+      case 'raumhelm': ctx.fillStyle = 'rgba(200,240,255,.25)'; ctx.strokeStyle = 'rgba(220,245,255,.85)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(hx, hy + 4, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); break;
+      case 'antennen': for (const k of [-4, 4]) { stroke('#2a5a3a', 1, hx + k, hy, hx + k * 1.5, hy - 8); dot(hx + k * 1.5, hy - 8.5, 1.8, '#7CFF6B'); } break;
+      case 'zylinder': rr(hx - 5, hy - 10, 10, 10, 1, '#2a2a3a'); ell(hx, hy, 9, 2, '#2a2a3a'); rr(hx - 5, hy - 3, 10, 1.6, 0.5, '#e8a0ff'); break;
+    }
+    ctx.restore();
+  }
+  function drinkShape(kind, x, y) {   // Bier – je nach Zeitalter im passenden Gefäß
+    if (kind === 'horn') { poly('#efe6cf', x - 3, y - 6, x + 4, y - 7, x + 1, y + 6); ell(x + 0.5, y - 6.5, 3.5, 1.4, '#ffe9a0'); }
+    else if (kind === 'kokos') { dot(x, y, 4.5, '#6a4426'); ell(x, y - 4, 3.6, 1.2, '#ffe9a0'); }
+    else if (kind === 'kelch') { poly('#ffd23f', x - 4, y - 6, x + 4, y - 6, x + 1, y); rr(x - 0.6, y, 1.2, 4, 0.5, '#ffd23f'); ell(x, y - 6, 4, 1.2, '#ffe9a0'); }
+    else if (kind === 'muschel') { ctx.fillStyle = '#f0c8d8'; ctx.beginPath(); ctx.arc(x, y - 2, 5, 0, Math.PI); ctx.fill(); ell(x, y - 2, 5, 1.2, '#ffe9a0'); }
+    else if (kind === 'flasche') { rr(x - 2.5, y - 4, 5, 9, 1.5, '#5a3a1a'); rr(x - 1, y - 8, 2, 4, 0.5, '#5a3a1a'); rr(x - 2.5, y - 1, 5, 3, 0.5, '#ffd23f'); }
+    else if (kind === 'dose') { rr(x - 3, y - 5, 6, 10, 1.5, '#c9d1dc'); rr(x - 3, y - 2, 6, 4, 0.5, '#2e7d32'); }
+    else if (kind === 'neon') { ctx.save(); ctx.shadowColor = '#5ef2ff'; ctx.shadowBlur = 8; rr(x - 3, y - 6, 6, 11, 2, 'rgba(94,242,255,.55)'); ctx.restore(); rr(x - 2, y - 2, 4, 6, 1, '#ffd23f'); }
+    else { rr(x - 4, y - 6, 8, 11, 2, kind === 'steinkrug' ? '#8a8fa0' : '#b07a45'); ell(x, y - 6, 4.5, 2, '#ffffff'); ctx.strokeStyle = kind === 'steinkrug' ? '#8a8fa0' : '#b07a45'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x - 4.5, y - 1, 2.8, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke(); }
+  }
+  function drawPatrickTip(text, t, era = L ? L.era : ERA_MA, x = W / 2 - 215, y0 = 70) {   // Patrick mit Sprechblase (oben in der Mitte)
+    const a = Math.min(1, t / 12);
+    ctx.save(); ctx.translate(0, y0 - 70);
+    ctx.save(); ctx.globalAlpha *= a;
+    ctx.fillStyle = 'rgba(20,14,30,.82)'; roundRect(ctx, x, 70, 470, 92, 18); ctx.fill(); ctx.strokeStyle = 'rgba(255,210,63,.6)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.save(); ctx.beginPath(); roundRect(ctx, x + 6, 74, 84, 84, 14); ctx.clip(); drawPatrick(x + 46, 196, era, 2.6, t); ctx.restore();
+    outlined('PATRICK', x + 102, 86, 14, '#ffd23f', 1, 'left', UIF);
+    ctx.font = UIF(15); const words = text.split(' '), lines = []; let line = '';
+    for (const wd of words) { const test = line ? line + ' ' + wd : wd; if (ctx.measureText(test).width > 352 && line) { lines.push(line); line = wd; } else line = test; } if (line) lines.push(line);
+    lines.slice(0, 3).forEach((ln, i) => outlined(ln, x + 102, 108 + i * 19, 15, '#ffffff', 1, 'left', UIF));
+    ctx.restore(); ctx.restore();
+  }
+  const PATRICK_START = ['Na, auch hier? Ich bin Patrick. Ich geb dir Tipps – und halte mein Bier fest. Prost!', 'Kleiner Tipp: In der Luft nochmal springen = Doppelsprung!',
+    'Münzen sammeln lohnt sich: Benny verkauft dir nach jedem Boss Power-ups.', 'Mit C bzw. dem Waffen-Knopf wechselst du durch alle Waffen im Rucksack.',
+    'Checkpoint-Fahnen merken sich, wo du warst. Wie ich mir merke, wo das Bier steht.', 'In der Luft runter + Angriff: Du haust nach unten. Perfekt gegen Gegner unter dir!',
+    'Herzen (♥) findest du in Kisten. Bier leider nicht. Hab nachgeschaut.', 'Pfeil hoch + Fernwaffe = du schießt nach oben. Gegen alles, was fliegt!',
+    'Ich hab gehört, Olphilver wartet am Ende jedes Zeitalters. Der Typ verschwendet echt gern Zeit.', 'Wer ein ganzes Zeitalter ohne zu sterben schafft, darf Olphilvers Spielchen überspringen!',
+    'Langsam ist auch ein Tempo. Aber schnell gibt Zeitbonus!', 'Prost! Oh … du meintest einen Tipp? Lauf nach rechts. Immer nach rechts.'];
+  const PATRICK_DEATH = {
+    fall: ['Löcher sind keine Abkürzung, Kollege. Erst gucken, dann springen!', 'Tipp: Vor großen Lücken Anlauf nehmen und in der Luft nochmal springen!', 'Runter geht’s immer. Rauf ist das Problem. Prost!'],
+    lava: ['Lava ist heiß. Bier ist kalt. Merk dir den Unterschied!', 'Achte auf die Blasen – Geysire warnen kurz vorher!'],
+    enemy: ['Erst draufhauen, dann vorbeilaufen. Oder spring den Gegnern auf den Kopf!', 'Nimm eine Fernwaffe (C) und erledige die Gegner aus sicherer Entfernung.', 'Die Werfer werfen im Bogen – kurz warten, dann vorbei!'],
+    chaser: ['Nicht stehen bleiben! Der hinter dir wartet nicht, bis du ausgetrunken hast.', 'Bei der Verfolgungsjagd: Gegner überspringen statt bekämpfen!'],
+    boss: [],
+  };
+  const PATRICK_STUCK = ['Hängst du fest? Probier mal einen Doppelsprung – zweimal springen!', 'Manchmal geht es über die Plattformen weiter oben weiter.',
+    'Sprungfedern bringen dich richtig hoch – einfach draufspringen!', 'Unter niedrigen Decken: ducken (runter) und durchrutschen!', 'Schau mal, ob du eine Kiste zerschlagen kannst. Da ist oft was drin!'];
+  function patrickSay(text, dur = 300) { if (L) L.patrick = { text, t: 0, dur }; }
+  function patrickLevelStart() {   // zu Levelbeginn ein passender Tipp
+    const d = L.def; let tip;
+    if (L.boss) tip = `Boss-Level! ${BOSS_SKINS[levelIndex + 1] ? BOSS_SKINS[levelIndex + 1].hint : L.boss.hint} Ich halt dir die Daumen. Und das Bier.`;
+    else if (d.jagd) tip = 'Verfolgungsjagd! Nicht umdrehen, einfach rennen. Ich warte im Ziel mit einem Bier.';
+    else if (d.dunkel) tip = 'Dunkel hier … wie in meinem Kühlschrank um drei Uhr nachts. Nur dein Licht zeigt den Weg!';
+    else if (d.wasser) tip = 'Unter Wasser springst du viel höher – und fällst ganz langsam. Mein Bier schwimmt übrigens oben.';
+    else if (d.mond) tip = 'Mond! Wenig Schwerkraft – du springst super hoch. Pass auf, dass du nicht wegfliegst.';
+    else if (L.eraIntro) tip = `Neues Zeitalter: ${L.E.name}! Neue Waffe im Rucksack: ${WEAPONS[L.E.weapons[0]].name}. Prost auf die neue Zeit!`;
+    else tip = PATRICK_START[(levelIndex * 7 + 3) % PATRICK_START.length];
+    patrickSay(tip, 330);
+  }
+  function patrickDeath(cause) {   // stirbt man oft, kommt Patrick mit einem Tipp
+    if (!run || run.lastDeathFrame === frame) return;
+    run.lastDeathFrame = frame;
+    if (run.deathLvl !== levelIndex) { run.deathLvl = levelIndex; run.deaths = 0; }
+    run.deaths++; run.eraClean = false;
+    if (run.deaths >= 2 && run.deaths % 2 === 0) {
+      const pool = cause === 'boss' && L.boss ? [`Gegen ${L.boss.name}: ${L.boss.hint}`] : PATRICK_DEATH[cause] || PATRICK_DEATH.enemy;
+      patrickSay(`${run.deaths}× erwischt in diesem Level … ${pick(pool)}`, 360);
+    }
+  }
+  function updatePatrick() {
+    if (!L || scene !== 'play') return;
+    if (!L.patrickDone && sceneT > 40 && !L.rescueMsg && !L.evoMsg) { L.patrickDone = true; patrickLevelStart(); }
+    if (L.patrick && ++L.patrick.t > L.patrick.dur) L.patrick = null;
+    // festgesteckt? (seit 25 Sekunden kein Stück weiter nach rechts)
+    if (P.x > (L.maxX || 0) + 40) { L.maxX = P.x; L.stuckT = 0; }
+    else if (++L.stuckT > 60 * 25 && !L.patrick) { L.stuckT = 0; patrickSay(L.boss && L.boss.active ? `Tipp gegen ${L.boss.name}: ${L.boss.hint}` : pick(PATRICK_STUCK), 330); }
+  }
+
   function onConfirm() {
     audioInit();
     if (scene === 'title') { if (!continueGame()) startLevel(sel, false); SFX.check(); }
     else if (scene === 'shop') shopBuy();
     else if (scene === 'gameover') { const sc = run.score, cpi = L.cpIndex; run.hearts = 3; startLevel(levelIndex, true, cpi); P.hearts = 3; run.score = Math.max(0, sc - 500); }
+    else if (scene === 'olph') mgConfirm();
+    else if (scene === 'olphEnd') { if (sceneT > 60) { if (!run.hofDone) addToHof(); scene = 'hof'; sceneT = 0; } }
+    else if (scene === 'clear' && sceneT > 100 && L.timeJump) startOlph();   // Olphilver wartet vor dem Zeitportal
     else if (scene === 'clear' && sceneT > 100) {
       if ((levelIndex + 1) % 10 === 0 && levelIndex + 1 < LEVELS.length) openShop(levelIndex + 1);   // nach jedem Boss (alle 10 Level): Laden
       else if (levelIndex + 1 < LEVELS.length) startLevel(levelIndex + 1, true);
       else { scene = 'victory'; sceneT = 0; run.newBest = run.score > best; if (run.newBest) { best = run.score; store.set('jr_best', best); } SFX.clear(); save = null; store.set('jr_save', null); }
     }
-    else if (scene === 'victory') { if (!run.hofDone) addToHof(); scene = 'hof'; sceneT = 0; }
+    else if (scene === 'victory') { scene = 'olphEnd'; sceneT = 0; SFX.roar(); }   // zum Schluss lacht Olphilver – Fortsetzung folgt
     else if (scene === 'hof') { scene = 'title'; L = null; sel = unlocked - 1; }
     else if (paused) paused = false;
   }
@@ -5508,6 +6042,13 @@
   // =====================================================================
   window.addEventListener('keydown', (e) => {
     const k = e.key;
+    if (scene === 'olph') {   // Minispiel: Pfeiltasten + Enter/Leertaste
+      const mv = { ArrowLeft: [-1, 0], a: [-1, 0], A: [-1, 0], ArrowRight: [1, 0], d: [1, 0], D: [1, 0], ArrowUp: [0, -1], w: [0, -1], W: [0, -1], ArrowDown: [0, 1], s: [0, 1], S: [0, 1] }[k];
+      if (mv) { e.preventDefault(); mgMove(mv[0], mv[1]); }
+      else if ([' ', 'Enter', 'x', 'X'].includes(k)) { e.preventDefault(); audioInit(); mgConfirm(); }
+      else if (k === 'm' || k === 'M') toggleSound();
+      return;
+    }
     if (scene === 'shop') {
       if (['ArrowLeft', 'a', 'A'].includes(k)) { e.preventDefault(); shopMove(-1); }
       else if (['ArrowRight', 'd', 'D'].includes(k)) { e.preventDefault(); shopMove(1); }
@@ -5549,6 +6090,7 @@
     b.addEventListener('pointerdown', (e) => { e.preventDefault(); audioInit(); b.classList.add('on');
       if (scene === 'title' && (id === 'bl' || id === 'br')) { sel = clamp(sel + (id === 'br' ? 1 : -1), 0, unlocked - 1); return; }
       if (scene === 'shop') { if (id === 'bl' || id === 'br') shopMove(id === 'br' ? 1 : -1); else if (id === 'jump' || id === 'shoot') shopBuy(); return; }
+      if (scene === 'olph') { const mv = { bl: [-1, 0], br: [1, 0], bu: [0, -1], bd: [0, 1] }[id]; if (mv) mgMove(mv[0], mv[1]); else mgConfirm(); return; }
       if (scene !== 'play' && scene !== 'intro') { onConfirm(); return; } on(); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, () => { b.classList.remove('on'); off(); }));
   };
@@ -5563,6 +6105,7 @@
   document.getElementById('bw').addEventListener('pointerdown', (e) => { e.preventDefault(); if (scene === 'play' || scene === 'intro') switchWeapon(); });
   document.getElementById('stage').addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect(), cx = (e.clientX - r.left) / r.width * W, cy = (e.clientY - r.top) / r.height * H;
+    if (scene === 'olph') { audioInit(); if (cx >= 0 && cx <= W && cy >= 0 && cy <= H) mgTap(cx, cy); return; }
     if (scene === 'shop') {   // Karte antippen = auswählen und kaufen
       const i = shopCards().findIndex((c) => cx >= c.x && cx <= c.x + c.w && cy >= c.y && cy <= c.y + c.h);
       if (i >= 0) { shopSel = i; audioInit(); shopBuy(); }
@@ -5701,10 +6244,12 @@
     audioInit();
     if (scene === 'title') { const n = clamp(sel + (dy ? -dy * 5 : dx), 0, unlocked - 1); if (n !== sel) { sel = n; SFX.coin(); } }
     else if (scene === 'shop' && dx) shopMove(dx);
+    else if (scene === 'olph') mgMove(dx, dy);
   }
   function confirmTouch() {   // Knopf außerhalb des Spiels: bestätigen / kaufen / weiter
     audioInit();
     if (scene === 'shop') shopBuy();
+    else if (scene === 'olph') mgConfirm();
     else if (scene !== 'play' && scene !== 'intro' && scene !== 'dying') onConfirm();
     else if (paused) paused = false;
   }
@@ -5718,9 +6263,9 @@
       knob.style.transform = `translate(calc(-50% + ${dx * R * 0.62}px), calc(-50% + ${dy * R * 0.62}px))`;
       if (side === 'l') {
         tin.lx = dx; tin.ly = dy;
-        if (scene === 'title' || scene === 'shop') {   // im Menü: einmal pro Ausschlag blättern
+        if (scene === 'title' || scene === 'shop' || scene === 'olph') {   // im Menü: einmal pro Ausschlag blättern
           const nx = dx > 0.6 ? 1 : dx < -0.6 ? -1 : 0, ny = dy > 0.6 ? 1 : dy < -0.6 ? -1 : 0;
-          if (nx && nx !== tin.navX) menuNav(nx, 0); if (ny && ny !== tin.navY && scene === 'title') menuNav(0, ny);
+          if (nx && nx !== tin.navX) menuNav(nx, 0); if (ny && ny !== tin.navY && scene !== 'shop') menuNav(0, ny);
           tin.navX = nx; tin.navY = ny; return;
         }
       } else { tin.rx = dx; tin.ry = dy; }
@@ -5790,9 +6335,9 @@
     const pr = gp.prev, edge = (k) => now[k] && !pr[k];
     const changed = Object.keys(now).some((k) => now[k] !== pr[k]);
     if (changed) {
-      if (scene === 'title' || scene === 'shop') {
+      if (scene === 'title' || scene === 'shop' || scene === 'olph') {
         if (edge('left')) menuNav(-1, 0); if (edge('right')) menuNav(1, 0);
-        if (scene === 'title' && edge('up')) menuNav(0, -1); if (scene === 'title' && edge('down')) menuNav(0, 1);
+        if (scene !== 'shop' && edge('up')) menuNav(0, -1); if (scene !== 'shop' && edge('down')) menuNav(0, 1);
         if (edge('jump') || edge('shoot') || edge('start')) confirmTouch();
       } else if (scene === 'play' || scene === 'intro') {
         keys.left = now.left; keys.right = now.right; keys.up = now.up; keys.down = now.down; keys.jump = now.jump; keys.shoot = now.shoot;
@@ -5807,6 +6352,9 @@
   window.addEventListener('gamepadconnected', () => { audioInit(); popupScreen('CONTROLLER VERBUNDEN!'); });
 
   // Test-Hilfe
+  window.__olph = { get MG() { return MG; }, start: () => startOlph(), confirm: () => mgConfirm(), move: (dx, dy) => mgMove(dx, dy), tap: (x, y) => mgTap(x, y),
+                    say: (s) => patrickSay(s), death: (c) => patrickDeath(c), drawOlph: (...a) => drawOlph(...a), drawPatrick: (...a) => drawPatrick(...a), drawBenny: (...a) => drawBenny(...a),
+                    get ctx() { return ctx; }, set eraClean(v) { run.eraClean = v; }, get eraClean() { return run && run.eraClean; } };
   window.__jr = { setTouch: (on) => setTouchMode(on), get touch() { return touchMode; }, get save() { return save; }, makeCode: (s) => makeCode(s || save), readCode: (c) => readCode(c), get hof() { return hof; }, get SHOP() { return SHOP; }, openShop: (n) => openShop(n),
                   set scene(v) { scene = v; }, set paused(v) { paused = v; }, addHof: (n, s) => { hof.push({ name: n, score: s, time: 300, date: '01.01.2026' }); hof.sort((a, b) => b.score - a.score); }, shopBuy: () => shopBuy(), get shopSel() { return shopSel; }, set shopSel(v) { shopSel = v; }, switchWeapon: () => switchWeapon(), continueGame: () => continueGame(), get P() { return P; }, get L() { return L; }, get scene() { return scene; }, get run() { return run; }, start: (i) => { audioInit(); startLevel(i || 0, false); }, keys, bossHit: (d) => bossHit(d), hurt: () => hurt(), get unlocked() { return unlocked; } };
 
