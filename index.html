@@ -1399,8 +1399,8 @@
     setCrouch(p, keys.down && p.onGround && !p.dead && !p.mounted);   // auf dem Pferd kann man sich nicht ducken
     if (p.crouch && dir) { p.facing = dir; dir = 0; }   // geduckt: nur umdrehen, nicht laufen
     if (dir) { if (dir !== p.facing && p.onGround) { p.sx = 0.82; p.sy = 1.08; if (Math.abs(p.vx) > 2.5) dust(p.x + p.w / 2, p.y + p.h, 3); } p.vx = clamp(p.vx + dir * acc, -maxV, maxV); p.facing = dir; }
-    if (p.onGround && Math.abs(p.vx) > 3.6 && frame % 9 === 0 && !p.mounted) dust(p.x + p.w / 2 - p.facing * 8, p.y + p.h, 1);
     else { p.vx *= slip ? 0.965 : p.onGround ? FRICTION : 0.94; if (Math.abs(p.vx) < 0.1) p.vx = 0; }
+    if (p.onGround && Math.abs(p.vx) > 3.6 && frame % 9 === 0 && !p.mounted) dust(p.x + p.w / 2 - p.facing * 8, p.y + p.h, 1);   // Laufstaub
     // Springen (mit Coyote-Time und Sprung-Puffer)
     if (jumpPressed) { p.buffer = BUFFER; jumpPressed = false; }
     if (p.buffer > 0) p.buffer--;
