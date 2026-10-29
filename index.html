@@ -632,6 +632,7 @@
     for (const d of L.droppers) { d.y0 = solid(L.map[0][d.col]) ? T + 4 : -40; d.y = d.y0; }
     L.chaser = def.jagd ? { x: L.start.x - 340, t: 0 } : null;
     L.eraIntro = i % LEVELS_PER_ERA === 0;   // erstes Level eines Zeitalters
+    L.coinsAll = L.coins.length; L.noHit = cpIndex < 0; L.par = levelPar(); L.kid = false; L.kidHalf = false;
     const rs = RESCUE[i + 1];   // Käfig steht zwischen Arena-Tor und Burgtor
     L.cage = rs && L.goal ? { kind: rs.kind, x: L.goal.x - 134, y: L.goal.y + L.goal.h - 60, w: 60, h: 60, open: false } : null;
     renderTiles();
@@ -668,6 +669,7 @@
       if (ev.length) L.evoMsg = { head: 'NEUES ZEITALTER!', name: L.E.name, text: ev[0], text2: ev[1], life: 240 };
     }
     music.song = L.E.key === 'mittelalter' ? L.theme.music : L.E.music;
+    if (run.kidLevel === i) applyKid();
   }
 
   function tileAt(c, r) {
@@ -1438,7 +1440,7 @@
         ch.x += v;
         if (p.x - ch.x < 320 && frame % 8 === 0) shake = Math.max(shake, 2);
         if (ch.x > p.x + 6) {   // eingeholt!
-          p.hearts--; shake = 12; SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4d6d', 14); patrickDeath('chaser');
+          if (!L.kid) p.hearts--; shake = 12; SFX.hurt(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff4d6d', 14); patrickDeath('chaser');
           if (p.hearts <= 0) die();
           else { p.x = L.spawn.x; p.y = L.spawn.y; p.vx = 0; p.vy = 0; p.inv = 100; p.ride = null; ch.x = L.spawn.x - 360; ch.t = 0; cam = clamp(p.x - W * 0.4, camMin(), L.w - W); }
         }
@@ -1462,8 +1464,40 @@
     if (c.kind === 'prinzessin') { L.princess = { x: cx, y: by, facing: -1, walk: 0 }; for (let k = 0; k < 6; k++) L.particles.push({ x: cx + rand(-20, 20), y: by - 40, vx: rand(-0.6, 0.6), vy: rand(-1.6, -0.6), life: 60, max: 60, size: 6, color: '#ff4d6d', g: 0 }); }
   }
 
+
+  // ---------- Waffen leveln: Stufe 1–3 durch Benutzen (Gegner besiegen, Boss treffen)
+  const WXP = [0, 20, 60];   // Erfahrung für Stufe 1, 2, 3
+  let hitBy = null;   // welche Waffe trifft gerade (für die Erfahrung)
+  function wXP(k) { return (run && run.wxp && run.wxp[k]) || 0; }
+  function wStage(k) { const x = wXP(k); return x >= WXP[2] ? 3 : x >= WXP[1] ? 2 : 1; }
+  function wStat(k = run.weapon) {   // Werte der Waffe mit Stufen-Bonus
+    const w = WEAPONS[k], st = wStage(k);
+    if (st === 1) return { ...w, stage: 1 };
+    return { ...w, stage: st, dmg: w.dmg + st - 1, cd: Math.max(5, Math.round(w.cd * (st === 2 ? 0.8 : 0.7))), range: w.range ? Math.round(w.range * (st === 3 ? 1.3 : 1.1)) : w.range };
+  }
+  function addXP(k, n) {
+    if (!run || !WEAPONS[k]) return;
+    run.wxp = run.wxp || {};
+    const before = wStage(k); run.wxp[k] = wXP(k) + n; const after = wStage(k);
+    if (after > before && P && L) {
+      const w = WEAPONS[k], extra = after === 2 ? 'mehr Schaden & schneller' : w.ranged ? '3er-Schuss' : 'Energiewelle';
+      popup(P.x + P.w / 2, P.y - 36, `STUFE ${after}!`, '#ffd23f'); ring(P.x + P.w / 2, P.y + P.h / 2, '#ffd23f'); sparkle(P.x + P.w / 2, P.y, '#ffd23f'); SFX.power();
+      L.lvlUp = { name: w.name, st: after, extra, life: 130, color: w.color };
+    }
+  }
+  function bigStar(x, y, r, fill, line) {
+    ctx.beginPath();
+    for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr2 = k % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rr2, y + Math.sin(a) * rr2); }
+    ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (line) { ctx.strokeStyle = line; ctx.lineWidth = Math.max(1, r / 7); ctx.stroke(); }
+  }
+  function stageStars(x, y, st, r = 4.5) { for (let k = 0; k < 3; k++) bigStar(x + k * (r * 2.4), y, r, k < st ? '#ffd23f' : 'rgba(255,255,255,.12)', k < st ? null : 'rgba(255,255,255,.4)'); }
+  function xpBar(x, y, w, k) {
+    const st = wStage(k), xp = wXP(k), f = st >= 3 ? 1 : (xp - WXP[st - 1]) / (WXP[st] - WXP[st - 1]);
+    ctx.fillStyle = 'rgba(255,255,255,.15)'; roundRect(ctx, x, y, w, 3, 1.5); ctx.fill();
+    ctx.fillStyle = st >= 3 ? '#e8a0ff' : '#ffd23f'; roundRect(ctx, x, y, Math.max(3, w * f), 3, 1.5); ctx.fill();
+  }
   function startAttack() {
-    const p = P, w = WEAPONS[run.weapon];
+    const p = P, w = wStat();
     p.atk = w.swing; p.atkCd = w.cd;
     const up = keys.up && w.ranged;   // ↑ + Angriff: senkrecht nach oben schießen
     const down = keys.down && !p.onGround && !up;   // in der Luft ↓ + Angriff: nach unten
@@ -1471,20 +1505,21 @@
     const sx = up ? p.x + p.w / 2 + p.facing * 4 : down ? p.x + p.w / 2 + p.facing * 3 : p.x + p.w / 2 + p.facing * 14,
           sy = up ? p.y - 6 : down ? p.y + p.h + 4 : p.y + (p.crouch ? 10 : 16);
     if (w.ranged) {
-      const sh = w.shot, n = sh.spread ? 3 : 1;
+      const sh = w.shot, n = (sh.spread ? 3 : 1) + (w.stage === 3 ? 2 : 0);   // Stufe 3: Fächerschuss
       for (let k = 0; k < n; k++) {
-        const a = sh.spread ? (k - 1) * 0.15 : 0;
+        const a = n > 1 ? (k - (n - 1) / 2) * (sh.spread ? 0.15 : 0.1) : 0;
         const dx = up || down ? Math.sin(a) : Math.cos(a) * p.facing, dy = up ? -Math.cos(a) : down ? Math.cos(a) : Math.sin(a);
         L.shots.push({ boomerang: !!sh.boomerang, bx: dx, by: dy, kind: sh.kind, x: sx, y: sy, vx: dx * sh.speed, vy: dy * sh.speed + (sh.lob && !up && !down ? -3.2 : 0), g: down ? 0 : sh.g || 0, life: sh.life, dmg: w.dmg,
-                       up, down, pierce: !!sh.pierce, homing: !!sh.homing, color: w.color, rot: 0, hitList: [] });
+                       up, down, pierce: !!sh.pierce, homing: !!sh.homing, color: w.color, rot: 0, hitList: [], w: run.weapon });
       }
       if (w.gun) { L.particles.push({ x: sx + (up || down ? 0 : p.facing * 16), y: up ? sy - 14 : down ? sy + 12 : sy - 2, vx: 0, vy: 0, life: 5, max: 5, size: 9, color: '#ffe9a0', g: 0 }); }
       SFX[sh.sfx]();
     } else SFX.swing();
-    if (w.fire && !down) { L.shots.push({ kind: 'flame', x: p.x + p.w / 2 + p.facing * 20, y: p.y + 20, vx: p.facing * 7, vy: 0, life: 30, dmg: 1, color: w.wave || '#ff7b2b', pierce: true }); SFX.fire(); }
+    if (w.fire && !down) { L.shots.push({ kind: 'flame', x: p.x + p.w / 2 + p.facing * 20, y: p.y + 20, vx: p.facing * 7, vy: 0, life: 30, dmg: 1, color: w.wave || '#ff7b2b', pierce: true, w: run.weapon }); SFX.fire(); }
+    else if (w.stage === 3 && !w.ranged && !down) L.shots.push({ kind: 'flame', x: p.x + p.w / 2 + p.facing * 20, y: p.y + 20, vx: p.facing * 7.5, vy: 0, life: 24, dmg: 1, color: w.color, pierce: true, w: run.weapon });   // Stufe 3: Energiewelle
   }
   function meleeHit() {
-    const p = P, w = WEAPONS[run.weapon];
+    const p = P, w = wStat(); hitBy = run.weapon;
     const hb = p.atkDown ? { x: p.x - 10, y: p.y + p.h - 8, w: p.w + 20, h: Math.max(34, w.range * 0.7) }   // Stoß nach unten
              : w.thrust ? { x: p.facing > 0 ? p.x + p.w - 6 : p.x - w.range + 6, y: p.y + 2, w: w.range, h: 22 }   // Speer: lang, aber schmal
                         : { x: p.facing > 0 ? p.x + p.w - 6 : p.x - w.range + 6, y: p.y - 14, w: w.range, h: p.h + 20 };
@@ -1497,6 +1532,7 @@
     if (hit && p.atkDown) { p.vy = -10; p.jumps = 1; }   // Stoß nach unten: man federt hoch
     if (hit && w.heavy) { shake = 9; SFX.thud(); dust(hb.x + hb.w / 2, p.y + p.h, 10); }
     if (hit) { shake = Math.max(shake, 3); sparkle(hb.x + (p.facing > 0 ? hb.w - 10 : 10), p.y + 10, w.fire ? '#ffb238' : '#ffffff'); }
+    hitBy = null;
   }
 
   // Kollision mit Kacheln: erst waagerecht, dann senkrecht
@@ -1538,6 +1574,11 @@
   function hurt(knock = true) {
     const p = P;
     if (p.inv > 0 || p.pw.U > 0 || p.dead) return;
+    L.noHit = false;
+    if (L.kid) {   // Kinder-Modus: nur jeder 2. Treffer tut weh
+      L.kidHalf = !L.kidHalf;
+      if (L.kidHalf) { p.inv = 90; if (knock) { p.vy = -6; p.vx = -p.facing * 3; } popup(p.x + p.w / 2, p.y - 14, 'PUH! GLÜCK GEHABT', '#ff9fd0'); SFX.poof(); return; }
+    }
     buzz(45);
     if (p.mounted) {   // Pferd fängt den Treffer ab: man fällt herunter
       p.mounted = false; p.inv = 80; shake = 6; SFX.thud();
@@ -1566,7 +1607,7 @@
     const p = P; if (p.dead) return;
     patrickDeath(cause || (lava ? 'lava' : 'fall'));
     if (lava) { SFX.lava(); burst(p.x + p.w / 2, p.y + p.h / 2, '#ff7b2b', 24); } else SFX.hurt();
-    p.hearts--; shake = 12;
+    if (!L.kid) p.hearts--; shake = 12;   // Kinder-Modus: Löcher und Lava kosten kein Herz
     if (p.hearts <= 0) { if (run.angel) angelSave(); else { die(); return; } }
     p.x = L.spawn.x; p.y = L.spawn.y; p.vx = 0; p.vy = 0; p.inv = 100; p.ride = null; p.crouch = false; p.h = 38;
     cam = clamp(p.x - W * 0.4, camMin(), L.w - W);
@@ -1756,6 +1797,7 @@
   }
   function killEnemy(e, how) {
     e.dead = 1; run.kills++; L.killsHere++;
+    if (hitBy) addXP(hitBy, e.typ === 'riese' ? 3 : 1);
     if (L.task === 'kopfgeld' && L.killsHere === L.bounty) { popup(e.x + e.w / 2, e.y - 30, 'KOPFGELD ERFÜLLT – DAS ZIEL IST OFFEN!', '#7CFF6B'); SFX.check(); }
     const pts = how === 'stomp' ? Math.min(100 * Math.pow(2, P.combo), 1600) : 100;
     run.score += pts; popup(e.x + e.w / 2, e.y, `+${pts}`, '#ffffff');
@@ -1829,10 +1871,12 @@
       s.vy = (s.vy || 0) + (s.g || 0); s.x += s.vx; s.y += s.vy; s.life--; s.rot = (s.rot || 0) + 0.35;
       const col = s.color || '#d9a066', big = s.kind === 'bigplasma' ? 14 : 8, sb = { x: s.x - big, y: s.y - big, w: big * 2, h: big * 2 };
       if (solid(tileAt(Math.floor(s.x / T), Math.floor(s.y / T)))) { s.life = 0; burst(s.x, s.y, col, 6); }
+      hitBy = s.w || null;
       for (const e of L.enemies) if (!e.dead && s.life > 0 && overlap(sb, e) && damageEnemy(e, s.dmg, Math.sign(s.vx), 'shot') && !s.pierce) s.life = 0;
       for (const r of L.rollers) if (s.life > 0 && r.life > 0 && overlap(sb, r)) { r.life = 0; burst(r.x + 15, r.y + 15, '#c9b08a', 10); if (!s.pierce) s.life = 0; }
       const B = L.boss;
       if (B && B.active && !B.dead && s.life > 0 && !(B.alpha < 0.6) && overlap(sb, B)) { s.life = 0; if (B.inv <= 0) bossHit(s.dmg); else burst(s.x, s.y, '#ffffff', 4); }
+      hitBy = null;
       if (s.kind === 'flame' && frame % 2 === 0) L.particles.push({ x: s.x, y: s.y + rand(-8, 8), vx: 0, vy: rand(-1.5, -0.5), life: 14, max: 14, size: rand(2, 4), color: s.color === '#ff7b2b' ? '#ffb238' : s.color, g: 0 });
     }
     L.shots = L.shots.filter((s) => s.life > 0);
@@ -1889,6 +1933,14 @@
     return ITEM[kind];
   }
 
+
+  // ---------- 3 Sterne pro Level: alle Münzen, ohne Treffer, unter der Zielzeit
+  let starsSaved = store.get('jr_stars', {});
+  const starsOf = (i) => starsSaved[i] || 0;
+  const starCount = (m) => (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1);
+  function starTotal() { let n = 0; for (const k in starsSaved) n += starCount(starsSaved[k]); return n; }
+  function levelPar() { return Math.ceil((L.w / 130 / (L.def.jagd ? 1.5 : 1) + (L.boss ? 50 : 0)) / 5) * 5; }
+  const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
   function levelClear() {
     if (L.cage && !L.cage.open) rescue();   // falls man über den Käfig gesprungen ist
     if (L.dbl) { const extra = Math.max(0, run.score - L.score0); run.score += extra; popup(P.x + P.w / 2, P.y - 40, `DOPPELPUNKTE +${extra}`, '#5ef2ff'); L.dbl = false; }
@@ -1898,6 +1950,14 @@
     L.tally = { coins: L.coinsHere, kills: L.killsHere, secs, timeBonus, heartBonus };
     run.score += timeBonus + heartBonus; run.hearts = P.hearts;
     if (L.task) { L.tally.task = TASK_NAME[L.task]; run.score += 500; }
+    if (!L.kid) {   // Sterne vergeben (der beste Versuch wird gemerkt)
+      const c = L.coinsHere >= L.coinsAll, h = L.noHit, t = secs <= L.par, m = (c ? 1 : 0) | (h ? 2 : 0) | (t ? 4 : 0);
+      L.tally.stars = [{ ok: c, label: `ALLE MÜNZEN ${Math.min(L.coinsHere, L.coinsAll)}/${L.coinsAll}` }, { ok: h, label: 'OHNE TREFFER' }, { ok: t, label: `UNTER ${fmtTime(L.par)}` }];
+      L.tally.newStars = m & ~starsOf(levelIndex);
+      starsSaved[levelIndex] = starsOf(levelIndex) | m; store.set('jr_stars', starsSaved);
+      if (m === 7) run.score += 1000;
+      L.tally.perfect = m === 7;
+    }
   }
 
   // =====================================================================
@@ -2339,6 +2399,7 @@
     const B = L.boss; if (B.dead || B.inv > 0) return;
     if (B.stone) { SFX.clang(); burst(B.x + B.w / 2, B.y + 10, '#c9d1dc', 6); B.inv = 10; return; }   // Stein: unverwundbar
     B.hp = Math.max(0, B.hp - dmg); B.inv = 30; shake = 8; SFX.bossHit();
+    if (hitBy) addXP(hitBy, 2);
     burst(B.x + B.w / 2, B.y + B.h / 3, '#ffffff', 16); popup(B.x + B.w / 2, B.y - 10, `-${dmg}`, '#ffffff');
     if (B.hp <= 0) {
       B.dead = 1; music.on = false; SFX.bossDie(); L.bossShots = [];
@@ -5307,7 +5368,10 @@
     const nw = run.weapons ? run.weapons.length : 1;
     ctx.fillStyle = 'rgba(20,14,30,.45)'; roundRect(ctx, 14, 86, 226, nw > 1 ? 46 : 34, 10); ctx.fill();
     weaponIcon(wk, 34, 103, 0.62);
-    outlined(run.fav === wk && run.favLevel === levelIndex ? `${wi.name}  ♥` : wi.name, 54, 98, 13, wi.color, 1, 'left', UIF);
+    const wname = run.fav === wk && run.favLevel === levelIndex ? `${wi.name}  ♥` : wi.name;
+    outlined(wname, 54, 98, 13, wi.color, 1, 'left', UIF);
+    ctx.font = UIF(13); const sx0 = 54 + ctx.measureText(wname).width + 12;
+    stageStars(sx0, 98, wStage(wk), 4.2); if (sx0 + 82 < 236) xpBar(sx0 + 32, 96.5, Math.min(44, 236 - sx0 - 34), wk);
     outlined(touchMode ? (wi.ranged ? 'RECHTER KREIS = SCHUSS · HOCH/RUNTER ZIEHEN' : 'RECHTER KREIS = ANGRIFF · IN DER LUFT ↓ = STOSS') : wi.ranged ? 'X = SCHUSS · ↑/↓ + X = HOCH/RUNTER' : 'X = ANGRIFF · IN DER LUFT ↓+X = STOSS', 54, 112, 9.5, '#d8e8ff', 0.85, 'left', UIF);
     if (nw > 1) outlined(`${touchMode ? '⇄' : 'C'} = WAFFE WECHSELN  (${run.weapons.indexOf(wk) + 1} / ${nw})`, 54, 125, 10, '#ffd23f', 0.9, 'left', UIF);
     if (run.armor > 0) {
@@ -5315,6 +5379,12 @@
       ctx.fillStyle = 'rgba(20,14,30,.45)'; roundRect(ctx, 14, ay, 226, 28, 10); ctx.fill();
       armorIcon(run.armor, 34, ay + 14, 0.75);
       outlined(ar.name, 54, ay + 15, 13, ar.color, 1, 'left', UIF);
+    }
+    if (L.kid) {   // Kinder-Modus-Abzeichen mit Schnuller
+      const ky = (nw > 1 ? 136 : 124) + (run.armor > 0 ? 32 : 0);
+      ctx.fillStyle = 'rgba(216,74,138,.88)'; roundRect(ctx, 14, ky, 150, 24, 10); ctx.fill();
+      dot(30, ky + 12, 6.5, '#ffffff'); dot(30, ky + 12, 3.5, '#ff9fd0'); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(38, ky + 12, 3.5, -1.2, 1.2); ctx.stroke();
+      outlined('KINDER-MODUS', 48, ky + 12, 12, '#ffffff', 1, 'left', UIF);
     }
     const B = L.boss;
     if (B && B.active && B.dead < 120) {
@@ -5350,8 +5420,8 @@
     const d = LEVELS[sel];
     panel(W / 2 - 250, 330, 500, 64);
     outlined(`${sel > 0 ? '◀  ' : '    '}LEVEL ${sel + 1}: ${d.name}${sel < unlocked - 1 ? '  ▶' : '    '}`, W / 2, 352, 24, '#ffffff');
-    const se = ERAS[d.era !== undefined ? d.era : ERA_OF_LEVEL(sel)];
-    outlined(d.boss ? `BOSS: ${(BOSS_SKINS[sel + 1] || BOSSES[d.boss]).name}${RESCUE[sel + 1] ? '  ·  BEFREIE ' + RESCUE[sel + 1].name : ''}` : (unlocked > 1 ? `${se.name}  ·  ← → Level  ·  ↑ ↓ 5 Level  (${unlocked} frei)` : `${se.name}  ·  weitere Level werden beim Spielen freigeschaltet`), W / 2, 378, 14, d.boss ? '#ff4d6d' : se.color, 1, 'center', UIF);
+    const se = ERAS[d.era !== undefined ? d.era : ERA_OF_LEVEL(sel)], sn = starCount(starsOf(sel)), stTxt = `${'★'.repeat(sn)}${'☆'.repeat(3 - sn)}  ·  `;
+    outlined(stTxt + (d.boss ? `BOSS: ${(BOSS_SKINS[sel + 1] || BOSSES[d.boss]).name}${RESCUE[sel + 1] ? '  ·  BEFREIE ' + RESCUE[sel + 1].name : ''}` : (unlocked > 1 ? `${se.name}  ·  ← → Level  ·  ↑ ↓ 5 Level  (${unlocked} frei)` : `${se.name}  ·  weitere Level werden beim Spielen freigeschaltet`)), W / 2, 378, 14, d.boss ? '#ff4d6d' : se.color, 1, 'center', UIF);
     const a = 0.6 + Math.sin(frame * 0.1) * 0.4;
     if (save) {
       ctx.save(); ctx.fillStyle = 'rgba(46,140,70,.9)'; roundRect(ctx, W / 2 - 250, 404, 500, 46, 16); ctx.fill(); ctx.strokeStyle = '#7CFF6B'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
@@ -5443,7 +5513,7 @@
     ctx.save(); ctx.globalAlpha = a;
     ctx.fillStyle = 'rgba(14,10,28,.9)'; roundRect(ctx, x0, y0, w, 124, 16); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 2; ctx.stroke();
     outlined('⏳ ZEITSTRAHL', x0 + 16, y0 + 15, 13, '#ffd23f', 1, 'left', UIF);
-    outlined(`LEVEL ${done} VON ${LEVELS.length} GESCHAFFT`, x0 + w - 16, y0 + 15, 13, '#ffffff', 1, 'right', UIF);
+    outlined(`LEVEL ${done} VON ${LEVELS.length} GESCHAFFT  ·  ★ ${starTotal()} / ${LEVELS.length * 3}`, x0 + w - 16, y0 + 15, 13, '#ffffff', 1, 'right', UIF);
     const bx = x0 + 16, bw = w - 32, sw = bw / ERA_COUNT, by = y0 + 28;
     for (let e = 0; e < ERA_COUNT; e++) {   // alle Zeitalter als Streifen
       ctx.save(); ctx.globalAlpha = a * (e < era ? 0.85 : e === era ? 1 : 0.25); ctx.fillStyle = ERAS[e].color; roundRect(ctx, bx + e * sw + 1, by, sw - 2, 12, 4); ctx.fill(); ctx.restore();
@@ -5459,12 +5529,14 @@
       const r = boss || last ? 6 : 4.5, isDone = li < done, now = li === levelIndex;
       if (isDone) dot(cx, dy, r, boss ? '#ff4d6d' : last ? '#b388ff' : E.color);
       else { ctx.save(); ctx.strokeStyle = boss ? '#ff4d6d' : last ? '#b388ff' : 'rgba(255,255,255,.45)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(cx, dy, r, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+      if (isDone && starsOf(li) === 7) { ctx.save(); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(cx, dy, r + 2.5, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
       if (now) { ctx.save(); ctx.globalAlpha = a * pulse; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, dy, r + 4, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
     }
     outlined(`Level ${first + 1}–${first + LEVELS_PER_ERA}`, bx + 8, y0 + 74, 11, '#d8e8ff', 0.9, 'left', UIF);
     const lx = bx + 8 + LEVELS_PER_ERA * dw - 6;
     outlined('Zeitportal', lx, y0 + 74, 10, '#d8e8ff', 0.85, 'right', UIF); dot(lx - 60, y0 + 74, 4, '#b388ff');
     outlined('Boss', lx - 72, y0 + 74, 10, '#d8e8ff', 0.85, 'right', UIF); dot(lx - 104, y0 + 74, 4, '#ff4d6d');
+    outlined('3 Sterne', lx - 116, y0 + 74, 10, '#d8e8ff', 0.85, 'right', UIF); ctx.save(); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(lx - 170, y0 + 74, 4.5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     const left = (era + 1) * LEVELS_PER_ERA - done, nx = bx + bw, nextE = ERAS[era + 1];
     let nb = 0; for (let li = done; li < Math.min(LEVELS.length, (era + 1) * LEVELS_PER_ERA); li++) if (LEVELS[li].boss) { nb = li - done + 1; break; }
     if (!nextE) {
@@ -5497,6 +5569,15 @@
     if (L.patrick && scene === 'play' && !paused) { ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, (L.patrick.dur - L.patrick.t) / 15)); drawPatrickTip(L.patrick.text, L.patrick.t, undefined, undefined, L.daniel ? 172 : 70); ctx.restore(); }
     if (L.daniel && (scene === 'play' || scene === 'dying' || scene === 'gameover') && !paused) drawDanielBox(L.daniel);
     if (scene === 'armory') { drawArmory(); return; }
+    if (scene === 'kid') { drawKidOffer(); return; }
+    if (L.lvlUp && scene === 'play') {   // Waffe steigt auf
+      const m = L.lvlUp, age = 130 - m.life, k = age < 12 ? easeBack(age / 12) : 1, a = Math.min(1, m.life / 20);
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(W / 2, 300); ctx.scale(k, k);
+      ctx.fillStyle = 'rgba(20,14,30,.8)'; roundRect(ctx, -230, -46, 460, 92, 18); ctx.fill(); ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2.5; ctx.stroke();
+      outlined(`${m.name} – STUFE ${m.st}!`, 0, -16, 26, '#ffd23f'); stageStars(-15, 12, m.st, 7);
+      outlined(m.extra, 0, 32, 14, '#ffffff', 1, 'center', UIF); ctx.restore();
+      if (!paused && --m.life <= 0) L.lvlUp = null;
+    }
     if (scene === 'intro') {
       const a = Math.max(0, Math.min(1, sceneT / 15, (110 - sceneT) / 15));
       if (L.eraIntro) {   // neues Zeitalter: große Ankündigung
@@ -5538,14 +5619,24 @@
     }
     if (scene === 'clear') {
       panel(W / 2 - 230, 130, 460, 330);
-      if (L.timeJump) { outlined('ZEITSPRUNG!', W / 2, 172, 44, '#b388ff'); outlined(`Weiter ins Zeitalter: ${ERAS[L.era + 1].name}`, W / 2, 206, 16, ERAS[L.era + 1].color, 1, 'center', UIF); }
-      else outlined('LEVEL GESCHAFFT!', W / 2, 180, 44, '#7CFF6B');
+      if (L.timeJump) { outlined('ZEITSPRUNG!', W / 2, 160, 38, '#b388ff'); outlined(`Weiter ins Zeitalter: ${ERAS[L.era + 1].name}`, W / 2, 190, 14, ERAS[L.era + 1].color, 1, 'center', UIF); }
+      else outlined('LEVEL GESCHAFFT!', W / 2, 168, 40, '#7CFF6B');
+      const ts = L.tally.stars;
+      if (L.kid) outlined('KINDER-MODUS – diesmal gibt es keine Sterne', W / 2, 228, 14, '#ff9fd0', 1, 'center', UIF);
+      else if (ts) ts.forEach((st0, k) => {
+        const x = W / 2 + (k - 1) * 140, t0 = 84 + k * 12, show = sceneT > t0, q = Math.min(1, Math.max(0, (sceneT - t0) / 10)), on = show && st0.ok;
+        ctx.save(); ctx.translate(x, 220); const sc = on ? 1 + (1 - q) * 0.7 : 1; ctx.scale(sc, sc);
+        bigStar(0, 0, 15, on ? '#ffd23f' : 'rgba(255,255,255,.08)', on ? '#fff2b0' : 'rgba(255,255,255,.35)'); ctx.restore();
+        outlined(st0.label, x, 246, 11, on ? '#ffd23f' : '#9aa3b8', 1, 'center', UIF);
+        if (on && (L.tally.newStars >> k) & 1) outlined('NEU!', x + 22, 206, 10, '#7CFF6B', 1, 'left', UIF);
+      });
+      if (L.tally.perfect && sceneT > 120) { ctx.save(); ctx.translate(W / 2 + 178, 150); ctx.rotate(0.25); outlined('PERFEKT! +1000', 0, 0, 14, '#ffd23f', 0.7 + Math.sin(frame * 0.15) * 0.3, 'center', UIF); ctx.restore(); }
       const t = L.tally, rows = [['Münzen', `${t.coins}`], ['Gegner besiegt', `${t.kills}`], ['Zeit', `${Math.floor(t.secs / 60)}:${String(t.secs % 60).padStart(2, '0')}`], ['Zeitbonus', `+${t.timeBonus}`], ['Herzbonus', `+${t.heartBonus}`]];
       if (t.task) rows.push([t.task, '+500']);
-      const rh = rows.length > 5 ? 31 : 36;
-      rows.forEach(([k2, v], i) => { if (sceneT > 20 + i * 12) { outlined(k2, W / 2 - 170, 240 + i * rh, 20, '#d8e8ff', 1, 'left', UIF); outlined(v, W / 2 + 170, 240 + i * rh, 22, '#ffffff', 1, 'right'); } });
+      const rh = rows.length > 5 ? 26 : 30;
+      rows.forEach(([k2, v], i) => { if (sceneT > 20 + i * 12) { outlined(k2, W / 2 - 170, 274 + i * rh, 18, '#d8e8ff', 1, 'left', UIF); outlined(v, W / 2 + 170, 274 + i * rh, 20, '#ffffff', 1, 'right'); } });
       drawTimeline(H - 132);
-      if (sceneT > 100) outlined(levelIndex + 1 >= LEVELS.length ? 'ENTER / TIPPEN: ZUM FINALE' : L.timeJump ? 'ENTER / TIPPEN: ZUM ZEITPORTAL' : (levelIndex + 1) % 10 === 0 ? 'ENTER / TIPPEN: ZUM LADEN' : 'ENTER / TIPPEN: WEITER', W / 2, 432, 18, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4);
+      if (sceneT > 100) outlined(levelIndex + 1 >= LEVELS.length ? 'ENTER / TIPPEN: ZUM FINALE' : L.timeJump ? 'ENTER / TIPPEN: ZUM ZEITPORTAL' : (levelIndex + 1) % 10 === 0 ? 'ENTER / TIPPEN: ZUM LADEN' : 'ENTER / TIPPEN: WEITER', W / 2, 440, 18, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4);
     }
     if (scene === 'gameover') {
       panel(W / 2 - 220, 170, 440, 240);
@@ -5606,9 +5697,11 @@
     frame++;
     if (shake > 0) shake *= 0.85; if (shake < 0.4) shake = 0;
     if (scene === 'title' || scene === 'shop' || paused) return;
+    if (kidPending && ((scene === 'play' && P && !P.dead) || scene === 'gameover')) { kidPending = false; kidPrev = scene; scene = 'kid'; kidSel = 1; SFX.warn(); }
     sceneT++;
     if (scene === 'olph') { if (MG) updateOlph(); return; }
     if (scene === 'olphEnd') return;
+    if (scene === 'clear' && L.tally && L.tally.stars) L.tally.stars.forEach((st0, k) => { if (st0.ok && sceneT === 85 + k * 12) SFX.coin(); });
     if (scene === 'intro') { updatePlatforms(); updateEnemies(); if (sceneT > 110) { scene = 'play'; music.on = true; applyBought(); } }
     else if (scene === 'play') {
       L.time++; run.time++;
@@ -5677,6 +5770,7 @@
       weaponIcon(k, c.x + c.w / 2, c.y + lift + 30, on ? 1 : 0.85);
       outlined(wi.name.length > 13 ? wi.name.slice(0, 12) + '.' : wi.name, c.x + c.w / 2, c.y + lift + 55, 10, on ? '#ffd23f' : '#ffffff', 1, 'center', UIF);
       if (here) outlined('★', c.x + c.w - 10, c.y + lift + 16, 11, '#7CFF6B', 1, 'center', UIF);
+      stageStars(c.x + 11, c.y + lift + 16, wStage(k), 3.4);
     }
     if (armTop > 0) outlined('▲', W / 2, 118, 12, '#ffd23f', 0.6 + Math.sin(frame * 0.15) * 0.4, 'center', UIF);
     if (armTop + 5 < rows) outlined('▼', W / 2, 496, 12, '#ffd23f', 0.6 + Math.sin(frame * 0.15) * 0.4, 'center', UIF);
@@ -5686,6 +5780,10 @@
       panel(W / 2 - 300, 504, 600, 84);
       weaponIcon(k, W / 2 - 250, 546, 1.4);
       outlined(wi.name, W / 2 - 200, 528, 22, wi.color || '#ffffff', 1, 'left');
+      const st = wStage(k), xp = wXP(k);
+      stageStars(W / 2 + 222, 522, st, 6);
+      outlined(st >= 3 ? 'STUFE 3 · MAX' : `STUFE ${st} · ${xp}/${WXP[st]} EP`, W / 2 + 288, 540, 11, st >= 3 ? '#e8a0ff' : '#ffd23f', 1, 'right', UIF);
+      xpBar(W / 2 + 168, 548, 120, k);
       outlined(`${wi.ranged ? 'FERNWAFFE' : 'NAHKAMPF'}  ·  aus dem Zeitalter ${e >= 0 ? ERAS[e].name : '?'}${L.E.weapons.includes(k) ? '  ·  ★ passt in dieses Zeitalter' : ''}`, W / 2 - 200, 554, 12, e >= 0 ? ERAS[e].color : '#ffffff', 1, 'left', UIF);
       outlined(touchMode ? 'Waffe antippen = wählen · nochmal antippen = mitnehmen' : '← → ↑ ↓ wählen  ·  ENTER / LEERTASTE = mitnehmen', W / 2 - 200, 574, 12, '#ffd23f', 0.7 + Math.sin(frame * 0.1) * 0.3, 'left', UIF);
     }
@@ -6473,7 +6571,8 @@
   function danielMock(cause) {
     run.deathsAll = (run.deathsAll || 0) + 1;
     let text;
-    if (run.deaths >= 3 && Math.random() < 0.45) text = pick(DANIEL_COUNT).replace('#', run.deaths);
+    if (L.kid) text = pick(DANIEL_KID);
+    else if (run.deaths >= 3 && Math.random() < 0.45) text = pick(DANIEL_COUNT).replace('#', run.deaths);
     else if (cause === 'boss' && L.boss && Math.random() < 0.3) text = `${L.boss.name} lacht dich aus. Und ich lach mit! Hahaha!`;
     else { const own = DANIEL_DEATH[cause] || []; const pool = [...own, ...own, ...DANIEL_DEATH.any].filter((x) => x !== run.danielLast); text = pick(pool); }
     run.danielLast = text; L.daniel = { text, t: 0, dur: 280 }; SFX.haha();
@@ -6512,12 +6611,50 @@
     lines.slice(0, 3).forEach((ln, i) => outlined(ln, x + 102, y + 38 + i * 19, 15, '#ffffff', 1, 'left', UIF));
     ctx.restore();
   }
+
+  // ---------- Kinder-Modus: nach 10 Toden in einem Level bietet Daniel ihn an
+  let kidPending = false, kidPrev = null, kidSel = 1;
+  const DANIEL_KID = ['Sogar im KINDER-MODUS?! Respekt … für diese Leistung.', 'Kinder-Modus und trotzdem tot. Das schaff nicht mal ich mit Absicht.',
+    'Ich ruf deine Mama an. Die soll mal weiterspielen.', 'Kinder-Modus, Stützräder, Schwimmflügel … und trotzdem!'];
+  function applyKid() {
+    L.kid = true; L.kidHalf = false; if (P) P.hearts = Math.max(P.hearts, maxHearts());
+    for (const e of L.enemies) { e.vx *= 0.65; if (e.speed0) e.speed0 *= 0.65; }
+    const B = L.boss; if (B && !B.dead) { B.maxHp = Math.max(3, Math.ceil(B.maxHp * 0.6)); B.hp = Math.max(1, Math.min(B.maxHp, Math.ceil(B.hp * 0.6))); }
+  }
+  function kidButtons() { return { yes: { x: W / 2 - 236, y: 402, w: 226, h: 50 }, no: { x: W / 2 + 10, y: 402, w: 226, h: 50 } }; }
+  function kidAnswer(yes) {
+    scene = kidPrev || 'play'; kidPrev = null;
+    if (yes) { run.kidLevel = levelIndex; if (scene === 'play') applyKid(); L.daniel = { text: 'KINDER-MODUS AN! Keine Sorge, ich sag’s niemandem. Außer allen. Hahaha!', t: 0, dur: 260 }; SFX.haha(); }
+    else { L.daniel = { text: 'Respekt! Oder Sturheit. Wir werden sehen … Hahaha!', t: 0, dur: 220 }; SFX.haha(); }
+  }
+  function drawKidOffer() {
+    ctx.save(); ctx.fillStyle = 'rgba(10,6,24,.78)'; ctx.fillRect(0, 0, W, H); ctx.restore();
+    const x0 = W / 2 - 260;
+    ctx.save(); ctx.fillStyle = 'rgba(46,8,28,.96)'; roundRect(ctx, x0, 104, 520, 364, 22); ctx.fill(); ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.beginPath(); roundRect(ctx, x0 + 18, 122, 128, 156, 16); ctx.clip(); ctx.fillStyle = '#2a0f2e'; ctx.fillRect(x0 + 18, 122, 128, 156); drawDaniel(x0 + 84, 326, 3.7, frame); ctx.restore();
+    outlined('DANIEL', x0 + 166, 140, 15, '#ff4d6d', 1, 'left', UIF);
+    outlined(`Okay, okay … ${run.deaths}× gestorben.`, x0 + 166, 170, 19, '#ffffff', 1, 'left', UIF);
+    outlined('Ich hab Mitleid. Soll ich den', x0 + 166, 198, 15, '#ffffff', 1, 'left', UIF);
+    outlined('KINDER-MODUS', x0 + 166, 232, 30, '#ff9fd0', 1, 'left');
+    outlined('für dieses Level einschalten?', x0 + 166, 264, 15, '#ffffff', 1, 'left', UIF);
+    ['♥  volle Herzen', '♥  Löcher und Lava kosten kein Herz', '♥  nur jeder 2. Treffer tut weh', '♥  Gegner langsamer, Boss schwächer'].forEach((tx, i) => outlined(tx, x0 + 30, 302 + i * 20, 13, '#ffd0e8', 1, 'left', UIF));
+    outlined('✖  dafür keine Sterne – und ich lach trotzdem', x0 + 30, 382, 13, '#ff9f9f', 1, 'left', UIF);
+    const kb = kidButtons();
+    for (const [key, b, txt, col] of [['yes', kb.yes, 'JA, BITTE! (J)', '#d84a8a'], ['no', kb.no, 'NEIN, ICH SCHAFF DAS! (N)', '#2e8c46']]) {
+      const on = (key === 'yes') === (kidSel === 0), lift = on ? Math.sin(frame * 0.15) * 2 - 2 : 0;
+      ctx.save(); ctx.fillStyle = col; roundRect(ctx, b.x, b.y + lift, b.w, b.h, 14); ctx.fill(); ctx.strokeStyle = on ? '#ffffff' : 'rgba(255,255,255,.3)'; ctx.lineWidth = on ? 3 : 1.5; ctx.stroke(); ctx.restore();
+      outlined(txt, b.x + b.w / 2, b.y + lift + b.h / 2, 14, '#ffffff', 1, 'center', UIF);
+    }
+  }
   function patrickDeath(cause) {   // stirbt man oft, kommt Patrick mit einem Tipp
     if (!run || run.lastDeathFrame === frame) return;
     run.lastDeathFrame = frame;
     if (run.deathLvl !== levelIndex) { run.deathLvl = levelIndex; run.deaths = 0; }
-    run.deaths++; run.eraClean = false;
+    run.deaths++; run.eraClean = false; L.noHit = false;
     danielMock(cause);
+    if (run.deaths >= 10 && !L.kid && run.kidLevel !== levelIndex && (run.kidAskLvl !== levelIndex || run.deaths >= (run.kidAskN || 0))) {
+      run.kidAskLvl = levelIndex; run.kidAskN = run.deaths + 10; kidPending = true;   // Daniel bietet den Kinder-Modus an
+    }
     if (run.deaths >= 2 && run.deaths % 2 === 0) {
       const pool = cause === 'boss' && L.boss ? [`Gegen ${L.boss.name}: ${L.boss.hint}`] : PATRICK_DEATH[cause] || PATRICK_DEATH.enemy;
       patrickSay(`${run.deaths}× erwischt in diesem Level … ${pick(pool)}`, 360);
@@ -6537,7 +6674,8 @@
     if (scene === 'title') { if (!continueGame()) startLevel(sel, false); SFX.check(); }
     else if (scene === 'shop') shopBuy();
     else if (scene === 'armory') armPick();
-    else if (scene === 'gameover') { const sc = run.score, cpi = L.cpIndex; run.hearts = 3; startLevel(levelIndex, true, cpi); P.hearts = 3; run.score = Math.max(0, sc - 500); }
+    else if (scene === 'kid') kidAnswer(kidSel === 0);
+    else if (scene === 'gameover') { const sc = run.score, cpi = L.cpIndex; run.hearts = 3; startLevel(levelIndex, true, cpi); P.hearts = L.kid ? maxHearts() : 3; run.score = Math.max(0, sc - 500); }
     else if (scene === 'olph') mgConfirm();
     else if (scene === 'olphEnd') { if (sceneT > 60) { if (!run.hofDone) addToHof(); scene = 'hof'; sceneT = 0; } }
     else if (scene === 'clear' && sceneT > 100 && L.timeJump) startOlph();   // Olphilver wartet vor dem Zeitportal
@@ -6569,6 +6707,14 @@
       if (mv) { e.preventDefault(); mgMove(mv[0], mv[1]); }
       else if ([' ', 'Enter', 'x', 'X'].includes(k)) { e.preventDefault(); audioInit(); mgConfirm(); }
       else if (k === 'm' || k === 'M') toggleSound();
+      return;
+    }
+    if (scene === 'kid') {
+      e.preventDefault();
+      if (['ArrowLeft', 'a', 'A', 'ArrowRight', 'd', 'D'].includes(k)) { kidSel = 1 - kidSel; SFX.coin(); }
+      else if (k === 'j' || k === 'J') kidAnswer(true);
+      else if (k === 'n' || k === 'N' || k === 'Escape') kidAnswer(false);
+      else if ([' ', 'Enter', 'x', 'X', 'Control'].includes(k)) kidAnswer(kidSel === 0);
       return;
     }
     if (scene === 'armory') {
@@ -6620,6 +6766,7 @@
     b.addEventListener('pointerdown', (e) => { e.preventDefault(); audioInit(); b.classList.add('on');
       if (scene === 'title' && (id === 'bl' || id === 'br')) { sel = clamp(sel + (id === 'br' ? 1 : -1), 0, unlocked - 1); return; }
       if (scene === 'shop') { if (id === 'bl' || id === 'br') shopMove(id === 'br' ? 1 : -1); else if (id === 'jump' || id === 'shoot') shopBuy(); return; }
+      if (scene === 'kid') { if (id === 'bl' || id === 'br') kidSel = 1 - kidSel; else kidAnswer(kidSel === 0); return; }
       if (scene === 'armory') { const mv = { bl: -1, br: 1 }[id]; if (mv) armMove(mv, 0); else if (id === 'bu' || id === 'bd') armMove(0, id === 'bd' ? 1 : -1); else armPick(); return; }
       if (scene === 'olph') { const mv = { bl: [-1, 0], br: [1, 0], bu: [0, -1], bd: [0, 1] }[id]; if (mv) mgMove(mv[0], mv[1]); else mgConfirm(); return; }
       if (scene !== 'play' && scene !== 'intro') { onConfirm(); return; } on(); });
@@ -6640,6 +6787,11 @@
     if (scene === 'shop') {   // Karte antippen = auswählen und kaufen
       const i = shopCards().findIndex((c) => cx >= c.x && cx <= c.x + c.w && cy >= c.y && cy <= c.y + c.h);
       if (i >= 0) { shopSel = i; audioInit(); shopBuy(); }
+      return;
+    }
+    if (scene === 'kid') {   // Knopf antippen
+      audioInit(); const kb = kidButtons(), inB = (b) => cx >= b.x && cx <= b.x + b.w && cy >= b.y - 6 && cy <= b.y + b.h + 6;
+      if (inB(kb.yes)) kidAnswer(true); else if (inB(kb.no)) kidAnswer(false);
       return;
     }
     if (scene === 'armory') {   // Waffe antippen = auswählen, nochmal antippen = mitnehmen
@@ -6784,12 +6936,14 @@
     if (scene === 'title') { const n = clamp(sel + (dy ? -dy * 5 : dx), 0, unlocked - 1); if (n !== sel) { sel = n; SFX.coin(); } }
     else if (scene === 'shop' && dx) shopMove(dx);
     else if (scene === 'armory') armMove(dx, dy);
+    else if (scene === 'kid' && dx) kidSel = 1 - kidSel;
     else if (scene === 'olph') mgMove(dx, dy);
   }
   function confirmTouch() {   // Knopf außerhalb des Spiels: bestätigen / kaufen / weiter
     audioInit();
     if (scene === 'shop') shopBuy();
     else if (scene === 'armory') armPick();
+    else if (scene === 'kid') kidAnswer(kidSel === 0);
     else if (scene === 'olph') mgConfirm();
     else if (scene !== 'play' && scene !== 'intro' && scene !== 'dying') onConfirm();
     else if (paused) paused = false;
@@ -6804,7 +6958,7 @@
       knob.style.transform = `translate(calc(-50% + ${dx * R * 0.62}px), calc(-50% + ${dy * R * 0.62}px))`;
       if (side === 'l') {
         tin.lx = dx; tin.ly = dy;
-        if (scene === 'title' || scene === 'shop' || scene === 'olph' || scene === 'armory') {   // im Menü: einmal pro Ausschlag blättern
+        if (scene === 'title' || scene === 'shop' || scene === 'olph' || scene === 'armory' || scene === 'kid') {   // im Menü: einmal pro Ausschlag blättern
           const nx = dx > 0.6 ? 1 : dx < -0.6 ? -1 : 0, ny = dy > 0.6 ? 1 : dy < -0.6 ? -1 : 0;
           if (nx && nx !== tin.navX) menuNav(nx, 0); if (ny && ny !== tin.navY && scene !== 'shop') menuNav(0, ny);
           tin.navX = nx; tin.navY = ny; return;
@@ -6876,7 +7030,7 @@
     const pr = gp.prev, edge = (k) => now[k] && !pr[k];
     const changed = Object.keys(now).some((k) => now[k] !== pr[k]);
     if (changed) {
-      if (scene === 'title' || scene === 'shop' || scene === 'olph' || scene === 'armory') {
+      if (scene === 'title' || scene === 'shop' || scene === 'olph' || scene === 'armory' || scene === 'kid') {
         if (edge('left')) menuNav(-1, 0); if (edge('right')) menuNav(1, 0);
         if (scene !== 'shop' && edge('up')) menuNav(0, -1); if (scene !== 'shop' && edge('down')) menuNav(0, 1);
         if (edge('jump') || edge('shoot') || edge('start')) confirmTouch();
