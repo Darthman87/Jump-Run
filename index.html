@@ -63,7 +63,13 @@
     body { padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
     .pad button { min-width: 38px; } .pad #jump { min-width: 56px; } .pad #shoot { min-width: 48px; } .pad #bu, .pad #bd { min-width: 36px; }
   }
-  @media (hover: hover) and (pointer: fine) { .pad { display: none; } }
+  @media (hover: hover) and (pointer: fine) {
+    .pad { display: none; }
+    .stage { width: min(100%, calc((100vh - 74px) * 4 / 3)); max-width: none; max-height: none; }   /* so groß wie das Fenster erlaubt */
+    .help { max-width: none; }
+  }
+  .stage:fullscreen { width: 100vw; height: 100vh; max-width: none; max-height: none; aspect-ratio: auto; border: 0; border-radius: 0; background: #000; }
+  .help button { font: inherit; font-size: .8rem; color: var(--fg); background: var(--frame); border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px; cursor: pointer; }
   /* ---------- Handy-Modus: Spiel füllt den Bildschirm, zwei Steuerkreise darüber ---------- */
   .tui { display: none; }
   html.touch { height: 100%; overflow: hidden; touch-action: none; overscroll-behavior: none; }
@@ -138,6 +144,7 @@
   <span><kbd>C</kbd> Waffe wechseln</span>
   <span><kbd>P</kbd> Pause</span>
   <span><kbd>M</kbd> Sound</span>
+  <span><button id="fsBtn" type="button">⛶ Vollbild (<kbd>V</kbd>)</button></span>
 </div>
 
 <script>
@@ -6611,6 +6618,7 @@
   function titleButtons() { return { code: { x: 12, y: 12, w: 168, h: 38 }, hof: { x: W - 180, y: 12, w: 168, h: 38 } }; }
 
   function draw() {
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
     if (scene === 'title') { drawTitle(); return; }
     if (scene === 'shop') { drawShop(); if (screenMsg) { outlined(screenMsg.t, W / 2, 410, 20, '#ffffff', Math.min(1, screenMsg.life / 15)); if (--screenMsg.life <= 0) screenMsg = null; } return; }
     if (scene === 'hof') { drawHof(); return; }
@@ -6732,10 +6740,10 @@
       outlined('PAUSE', W / 2, H / 2 - 20, 64, '#ffffff');
       outlined('P oder Tippen: weiter', W / 2, H / 2 + 34, 18, '#d8e8ff', 1, 'center', UIF);
       const code = currentCode();
-      if (code) { panel(W / 2 - 250, H / 2 + 62, 500, 96);
-        outlined('DEIN SPIELSTAND-CODE', W / 2, H / 2 + 82, 14, '#ffd23f', 1, 'center', UIF);
-        outlined(code, W / 2, H / 2 + 110, 21, '#ffffff');
-        outlined('K = kopieren (oder Code antippen)  ·  am Start mit L eingeben', W / 2, H / 2 + 138, 12, '#d8e8ff', 1, 'center', UIF); }
+      if (code) { panel(W / 2 - 330, H / 2 + 62, 660, 104);
+        outlined('DEIN SPIELSTAND-CODE  ·  gilt nur auf diesem Gerät', W / 2, H / 2 + 82, 14, '#ffd23f', 1, 'center', UIF);
+        outlined(code, W / 2, H / 2 + 110, 17, '#ffffff');
+        outlined('K = kopieren (oder Code antippen)  ·  am Start mit L eingeben  ·  weitergeben bringt nichts ;)', W / 2, H / 2 + 140, 12, '#d8e8ff', 1, 'center', UIF); }
       if (codeMsg) { outlined(codeMsg.t, W / 2, H / 2 + 176, 16, '#7CFF6B', Math.min(1, codeMsg.life / 15), 'center', UIF); if (--codeMsg.life <= 0) codeMsg = null; }
     }
     if (screenMsg) { outlined(screenMsg.t, W / 2, 132, 20, '#ffffff', Math.min(1, screenMsg.life / 15)); if (--screenMsg.life <= 0) screenMsg = null; }
@@ -6877,26 +6885,37 @@
   const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', WEAPON_KEYS = Object.keys(WEAPONS), BOUGHT_KEYS = ['F', 'R', 'U', 'M', 'D'];
   function codeFields(sv) {
     const r = sv.run, wm = WEAPON_KEYS.reduce((m, k, i) => (r.weapons || []).includes(k) || (r.found || []).includes(k) ? m | (1n << BigInt(i)) : m, 0n);
-    return [[3, 3], [sv.level, 10], [(sv.cp ?? -1) + 1, 5], [sv.shop ? 1 : 0, 1], [r.hearts, 4], [r.extraHearts || 0, 2], [r.armor || 0, 3], [r.coins, 13], [Math.floor(r.score / 10), 20],
+    return [[4, 3], [sv.level, 10], [(sv.cp ?? -1) + 1, 5], [sv.shop ? 1 : 0, 1], [r.hearts, 4], [r.extraHearts || 0, 2], [r.armor || 0, 3], [r.coins, 13], [Math.floor(r.score / 10), 20],
             [Math.max(0, WEAPON_KEYS.indexOf(r.weapon)), 7], [wm, 91], [BOUGHT_KEYS.reduce((m, k, i) => (r.bought || {})[k] ? m | (1 << i) : m, 0), 5], [r.angel ? 1 : 0, 1]];
+  }
+  const DEV_ID = (() => { let d = store.get('jr_dev', 0); if (!d) { d = 1 + Math.floor(Math.random() * 65535); store.set('jr_dev', d); } return d; })();   // Geräte-Kennung
+  function codeMask(dev, n) {   // verwürfelt den Code je Gerät
+    let x = (dev * 2654435761) >>> 0 || 1, m = 0n;
+    for (let k = 0; k < Math.ceil(n / 32); k++) { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; m = (m << 32n) | BigInt(x); }
+    return m & ((1n << BigInt(n)) - 1n);
   }
   function makeCode(sv) {
     if (!sv || !sv.run) return '';
     let v = 0n; for (const [val, bits] of codeFields(sv)) { const max = (1n << BigInt(bits)) - 1n; let b = BigInt(val); if (b < 0n) b = 0n; if (b > max) b = max; v = (v << BigInt(bits)) | b; }
-    let s = ''; for (let k = 0; k < 33; k++) { s = CODE_ABC[Number(v & 31n)] + s; v >>= 5n; }
+    v = ((v ^ codeMask(DEV_ID, 165)) << 16n) | BigInt(DEV_ID ^ 0x5a3c);
+    let s = ''; for (let k = 0; k < 37; k++) { s = CODE_ABC[Number(v & 31n)] + s; v >>= 5n; }
     let cs = 0; for (let k = 0; k < s.length; k++) cs = (cs + (CODE_ABC.indexOf(s[k]) + 1) * (k + 7)) % 1024;
     s += CODE_ABC[cs >> 5] + CODE_ABC[cs & 31];
     return 'KITS-' + s.match(/.{1,5}/g).join('-');
   }
   function readCode(code) {
     let s = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (s.startsWith('KITS')) s = s.slice(4);
-    if ((s.length !== 30 && s.length !== 35) || [...s].some((c) => !CODE_ABC.includes(c))) return null;
+    if ([...s].some((c) => !CODE_ABC.includes(c))) return null;
+    if (s.length === 30 || s.length === 35) return { err: 'alt' };
+    if (s.length !== 39) return null;
     const n = s.length - 2;
     let cs = 0; for (let k = 0; k < n; k++) cs = (cs + (CODE_ABC.indexOf(s[k]) + 1) * (k + 7)) % 1024;
     if (CODE_ABC[cs >> 5] + CODE_ABC[cs & 31] !== s.slice(n)) return null;
     let v = 0n; for (let k = 0; k < n; k++) v = (v << 5n) | BigInt(CODE_ABC.indexOf(s[k]));
+    if ((Number(v & 0xffffn) ^ 0x5a3c) !== DEV_ID) return { err: 'fremd' };   // auf einem anderen Gerät erstellt
+    v = (v >> 16n) ^ codeMask(DEV_ID, 165);
     let out = null, cv = 0;
-    for (const [vv, lb, wb] of n === 33 ? [[3, 10, 91]] : [[2, 9, 64], [1, 8, 64]]) {   // Version 3 (625 Level), 2 (500 Level) oder 1 (150 Level)
+    for (const [vv, lb, wb] of [[4, 10, 91]]) {   // Version 3 (625 Level), 2 (500 Level) oder 1 (150 Level)
       const sizes = [3, lb, 5, 1, 4, 2, 3, 13, 20, 7, wb, 5, 1], total = sizes.reduce((a, b) => a + b, 0), o = [];
       let shift = BigInt(total); for (const b of sizes) { shift -= BigInt(b); o.push((v >> shift) & ((1n << BigInt(b)) - 1n)); }
       if (Number(o[0]) === vv) { out = o; cv = vv; break; }
@@ -6905,7 +6924,7 @@
     let [, level, cp1, shop, hearts, extra, armor, coins, score10, wi, wm, bought, angel] = out;
     const ver1 = cv === 1;
     if (ver1) { level = BigInt(oldLevel(Number(level))); cp1 = 0n; shop = 0n; }
-    if (cv < 3) { level = BigInt(map500i(Number(level))); cp1 = 0n; shop = 0n; }
+
     if (Number(level) >= LEVELS.length) return null;
     const lv = Number(level), weapons = WEAPON_KEYS.filter((k, i) => (wm >> BigInt(i)) & 1n);
     const run2 = { score: Number(score10) * 10, coins: Number(coins), coinsTotal: Number(coins), kills: 0, time: 0, hearts: Math.max(1, Number(hearts)), extraHearts: Number(extra),
@@ -6925,7 +6944,7 @@
     let c = null; try { c = window.prompt('Spielstand-Code eingeben (z. B. KITS-ABCDE-…):', ''); } catch { return; }
     if (c === null || c === undefined) return;
     const sv = readCode(c);
-    if (!sv) { codeMsg = { t: 'Dieser Code stimmt leider nicht – bitte genau abtippen!', life: 150, bad: true }; SFX.hurt(); return; }
+    if (!sv || sv.err) { codeMsg = { t: sv && sv.err === 'fremd' ? 'Dieser Code gehört zu einem anderen Gerät – Codes kann man nicht weitergeben!' : sv && sv.err === 'alt' ? 'Alte Codes gelten nicht mehr – hol dir im Spiel (Pause) einen neuen.' : 'Dieser Code stimmt leider nicht – bitte genau abtippen!', life: 200, bad: true }; SFX.hurt(); return; }
     save = sv; store.set('jr_save', save);
     if (sv.level + 1 > unlocked) { unlocked = sv.level + 1; store.set('jr_unlocked', unlocked); }
     sel = sv.level; audioInit(); continueGame(); SFX.check();
@@ -7872,7 +7891,7 @@
     acc += Math.min(now - last, 200); last = now;
     let n = 0;
     while (acc >= 1000 / 60) { snapPrev(); try { pollGamepad(); } catch { gp.off = true; } update(); acc -= 1000 / 60; n++; }
-    drawStep = n;
+    drawStep = n; resTick(now);
     drawSmooth(acc / (1000 / 60));
     drawStep = 1;
     requestAnimationFrame(loop);
@@ -8013,10 +8032,27 @@
     return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
   }
   const place = (el, x, y, w, h) => { el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; if (w !== undefined) { el.style.width = `${Math.round(w)}px`; el.style.height = `${Math.round(h)}px`; } };
+  let RES = 1, resCap = false, resAvg = 16, resLast = 0, resBad = 0;
+  function fitRes() {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    let k = resCap ? 1 : Math.max(1, Math.min(2.5, (r.width || W) * dpr / W)); k = Math.round(k * 4) / 4;
+    if (Math.round(W * k) * Math.round(H * k) > 4200000) k = 1.5;   // nicht übertreiben
+    if (k !== RES || canvas.width !== Math.round(W * k) || canvas.height !== Math.round(H * k)) { RES = k; canvas.width = Math.round(W * k); canvas.height = Math.round(H * k); }
+  }
+  function resTick(now) {   // wird es zu langsam, rechnet das Spiel wieder in normaler Auflösung
+    if (resLast) { const d = Math.min(100, now - resLast); resAvg = resAvg * 0.95 + d * 0.05; if (resAvg > 23 && RES > 1) { if (++resBad > 150) { resCap = true; fitRes(); } } else resBad = 0; }
+    resLast = now;
+  }
+  try { new ResizeObserver(() => fitRes()).observe(canvas); } catch { window.addEventListener('resize', fitRes); }
+  function toggleFull() {
+    try { if (document.fullscreenElement) document.exitFullscreen(); else (stageEl.requestFullscreen || stageEl.webkitRequestFullscreen).call(stageEl); } catch {}
+  }
+  document.getElementById('fsBtn').addEventListener('click', toggleFull);
+  window.addEventListener('keydown', (e) => { if ((e.key === 'v' || e.key === 'V') && !e.repeat && !touchMode) toggleFull(); });
   function setGameWidth(w) {
     w = Math.max(800, Math.min(1400, Math.round(w / 2) * 2));
     if (w === W) return;
-    W = w; canvas.width = W; canvas.height = H;
+    W = w; fitRes();
     if (L && P) cam = clamp(P.x - W * 0.4, camMin(), L.w - W);
     for (const b of (L ? L.bgParts : [])) b.x = rand(0, W);
   }
