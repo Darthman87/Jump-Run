@@ -175,10 +175,10 @@
   // Alle 25 Level wird jemand aus einem Käfig hinter der Boss-Arena befreit
   const RESCUE = {
     25: { kind: 'pferd', name: 'DEIN REITTIER', text: 'Du reitest jetzt: schneller – und ein Treffer wirft dich nur ab! In jedem Zeitalter ein anderes Tier.' },
-    220: { kind: 'knappe', name: 'DEIN KNAPPE', text: 'Der kleine Ritter folgt dir und wirft Dolche auf Gegner!' },
-    345: { kind: 'papagei', name: 'DEIN PAPAGEI', text: 'Er fliegt mit, sammelt Münzen und hackt nach Gegnern!' },
-    395: { kind: 'hund', name: 'DEIN SPÜRHUND', text: 'Er schnappt sich Gegner und sammelt Münzen für dich!' },
-    565: { kind: 'roboter', name: 'ROBOTER R0-B1', text: 'Der kleine Roboter schwebt neben dir und schießt mit Laser!' },
+    220: { kind: 'knappe', mod: true, name: 'DOLCH-GURT', text: 'Rüstungs-Modul! Deine Rüstung wirft jetzt von selbst Dolche auf Gegner in der Nähe.' },
+    345: { kind: 'papagei', mod: true, name: 'MÜNZ-MAGNET', text: 'Rüstungs-Modul! Münzen in deiner Nähe fliegen jetzt von selbst zu dir.' },
+    395: { kind: 'hund', mod: true, name: 'STACHEL-PANZER', text: 'Rüstungs-Modul! Gegner, die dir zu nahe kommen, bekommen automatisch Schaden.' },
+    565: { kind: 'roboter', mod: true, name: 'SCHULTER-LASER', text: 'Rüstungs-Modul! Ein Laser auf deiner Schulter schießt auf Gegner.' },
     625: { kind: 'prinzessin', name: 'PRINZESSIN ZUHAL VON THAILAND', text: 'Du hast die Prinzessin gerettet! Bring sie zum Ausgang!' },
   };
   function friendsForStart(i) { const fr = {}; for (const n in RESCUE) if (+n < i + 1) fr[RESCUE[n].kind] = true; return fr; }
@@ -296,7 +296,7 @@
     { name: 'WIKINGER', key: 'wikinger', costume: 'wikinger', color: '#9fd8ff', weapons: ['wikingeraxt', 'wurfhammer', 'eis'], foes: { goblin: 'wolf', ork: 'wikinger', bat: 'rabe', troll: 'eistroll', skelett: 'axtwerfer' },
       shot: 'axe', roller: 'barrel', drop: 'icicle', vent: 'steam', spring: 'trommel', chaser: 'lawine', goal: 'langhaus', music: 12, story: 'Segel gesetzt! Über Fjorde und Drachenboote nach Norden.' },
     { name: 'MITTELALTER', key: 'mittelalter', costume: 'ritter', color: '#ff4d6d', weapons: ['schwert', 'armbrust', 'flamme'], foes: { goblin: 'goblin', ork: 'ork', bat: 'bat', troll: 'troll', skelett: 'skelett' },
-      shot: 'bone', roller: 'barrel', drop: 'rock', vent: 'lava', spring: 'spring', chaser: 'feuer', goal: 'burg', music: 8, story: 'Burgen, Ritter, Drachen – hier wartet dein treuer Knappe.' },
+      shot: 'bone', roller: 'barrel', drop: 'rock', vent: 'lava', spring: 'spring', chaser: 'feuer', goal: 'burg', music: 8, story: 'Burgen, Ritter, Drachen – und ein schweres Schwert für dich.' },
     { name: '1001 NACHT', key: 'orient', costume: 'abenteurer', color: '#f0b030', weapons: ['krummsaebel', 'wurfdolch', 'wunderlampe'], foes: { goblin: 'kobra', ork: 'palastwache', bat: 'teppichdieb', troll: 'oger', skelett: 'dolchwerfer' },
       shot: 'krummdolch', roller: 'barrel', drop: 'krug', vent: 'sand', spring: 'trommel', chaser: 'sandsturm', goal: 'palasttor', music: 25,
       story: 'Fliegende Teppiche, Basare und ein mächtiger Dschinn.' },
@@ -635,7 +635,7 @@
       else if (ch === 'a') L.enemies.push(makeEnemy('goblin', x, y, 'ansturm'));  // Anstürmer
       else if (ch === 'b') L.enemies.push(makeEnemy('ork', x, y, 'schild'));      // Schildträger
       else if (ch === 'g') L.enemies.push(makeEnemy('troll', x, y, 'riese'));     // Riese
-      else if (ch === '$') L.crystals.push({ x: x + 20, y: y + 20, t: Math.random() * 6 });   // Zeitkristall
+      else if (ch === '$') L.coins.push({ x: x + 20, y: y + 20, t: Math.random() * 6 });   // früher Zeitkristall, jetzt Münze
       else if (ch === 'M') L.plats.push({ kind: 'M', x0: x, y0: y + 6, x, y: y + 6, w: 80, h: 16, t: 0, dx: 0, dy: 0 });
       else if (ch === 'V') L.plats.push({ kind: 'V', x0: x, y0: y + 6, x, y: y + 6, w: 80, h: 16, t: c * 0.7, dx: 0, dy: 0 });
       else if (ch === 'C') L.plats.push({ kind: 'C', x0: x, y0: y, x, y, w: 40, h: 16, t: 0, dx: 0, dy: 0, load: 0, fall: false, vy: 0, gone: 0 });
@@ -648,7 +648,7 @@
       if (!keep) L.map[r][c] = ' ';
     }
     L.spawn = { ...L.start };
-    L.task = def.auftrag || null; L.crystalsAll = L.crystals.length; L.crystalsHere = 0; L.lockMsg = 0; L.timeoutMsg = 0; L.timeLeft = 0; L.timeFull = 0;
+    L.task = def.auftrag === 'rennen' ? 'rennen' : null;   // Kristalle sammeln und Kopfgeld gibt es nicht mehr L.crystalsAll = L.crystals.length; L.crystalsHere = 0; L.lockMsg = 0; L.timeoutMsg = 0; L.timeLeft = 0; L.timeFull = 0;
     if (L.task === 'sammeln' && !L.crystalsAll) L.task = null;
     L.bounty = L.task === 'kopfgeld' ? Math.min(L.enemies.length, Math.max(4, Math.min(20, Math.round(0.45 * L.enemies.length)))) : 0;
     if (L.task === 'kopfgeld' && !L.bounty) L.task = null;
@@ -681,15 +681,11 @@
     raceClock();
     run.friends = run.friends || {};
     P.mounted = !!run.friends.pferd;
-    L.squire = run.friends.knappe ? { x: P.x - 30, y: P.y + P.h, facing: 1, walk: 0, cd: 60, throwT: 0 } : null;
-    L.falcon = run.friends.hund ? { x: P.x - 60, y: P.y + P.h, state: 'fly', target: null, cd: 120, t: 0, facing: 1, walk: 0 } : null;   // Polizeihund
-    L.parrot = run.friends.papagei ? { x: P.x - 40, y: P.y - 30, state: 'fly', target: null, cd: 100, t: 0, facing: 1 } : null;
-    L.robot = run.friends.roboter ? { x: P.x - 50, y: P.y - 10, cd: 60, t: 0, facing: 1, shootT: 0 } : null;
+    L.squire = L.falcon = L.parrot = L.robot = null; L.mod = { dolch: 60, laser: 40, aura: 0, fx: 0 };   // keine Gefährten mehr – ihre Fähigkeiten stecken in der Rüstung
     L.princess = null; L.runaway = null; L.rescueMsg = null; L.score0 = run.score; L.dbl = false;
     if (L.eraIntro && i > 0) {   // neues Zeitalter: Reittier und Begleiter verwandeln sich
       const ev = [];
       if (run.friends.pferd && mountKind(L.era) !== mountKind(L.era - 1)) ev.push(`Dein Reittier wird zum ${MOUNT_NAME[mountKind(L.era)]}!`);
-      if (run.friends.knappe) ev.push(`Dein Begleiter ist jetzt: ${squireLook(L.era)[0]}`);
       if (ev.length) L.evoMsg = { head: 'NEUES ZEITALTER!', name: L.E.name, text: ev[0], text2: ev[1], life: 240 };
     }
     music.song = L.E.key === 'mittelalter' ? L.theme.music : L.E.music;
@@ -1463,7 +1459,50 @@
     fw.facing = Math.abs(dx) > 3 ? Math.sign(dx) : p.facing;
     fw.walk += Math.min(0.45, Math.abs(dx * k) * 0.1);
   }
+  function updateMods() {   // Rüstungs-Module: Dolch-Gurt, Münz-Magnet, Stachel-Panzer, Schulter-Laser
+    const p = P, F = run.friends || {}, M = L.mod || (L.mod = { dolch: 60, laser: 40, aura: 0, fx: 0 });
+    if (p.dead) return;
+    const cx = p.x + p.w / 2, sy = p.y + 8, cy = p.y + p.h / 2;
+    if (M.fx > 0) M.fx--;
+    if (F.knappe && --M.dolch <= 0) {
+      const tg = nearestFoe(cx, sy, 280, true);
+      if (tg) { const tx = tg.x + tg.w / 2, ty = tg.y + tg.h / 2, d = Math.hypot(tx - cx, ty - sy) || 1, kind = squireLook(L.era)[1];
+        L.shots.push({ kind, aim: true, color: kind === 'laser' ? '#5ef2ff' : kind === 'plasma' ? '#7CFF6B' : undefined, x: cx, y: sy, vx: (tx - cx) / d * 8, vy: (ty - sy) / d * 8, life: 50, dmg: 1 });
+        M.dolch = 85; SFX.swing(); } else M.dolch = 10;
+    }
+    if (F.roboter && --M.laser <= 0) {
+      const lx = cx - p.facing * 6, ly = p.y - 4, tg = nearestFoe(lx, ly, 340, true);
+      if (tg) { const tx = tg.x + tg.w / 2, ty = tg.y + tg.h / 2, d = Math.hypot(tx - lx, ty - ly) || 1;
+        L.shots.push({ kind: 'laser', aim: true, x: lx, y: ly, vx: (tx - lx) / d * 11, vy: (ty - ly) / d * 11, life: 45, dmg: 1, color: '#ff4d6d' });
+        M.laser = 70; M.aim = Math.atan2(ty - ly, tx - lx); M.flash = 8; SFX.shoot2(); } else M.laser = 12;
+    }
+    if (M.flash > 0) M.flash--;
+    if (F.hund) { if (M.aura > 0) M.aura--; else for (const e of L.enemies) {
+      if (!e.dead && Math.abs(e.x + e.w / 2 - cx) < 44 + e.w / 2 && Math.abs(e.y + e.h / 2 - cy) < 40 + e.h / 2) {
+        damageEnemy(e, 1, e.x + e.w / 2 > cx ? 1 : -1, 'shot'); M.aura = 50; M.fx = 14; SFX.stomp(); break; } } }
+    if (F.papagei) for (const co of L.coins) { const dx = cx - co.x, dy = cy - co.y, d = Math.hypot(dx, dy); if (d < 160 && d > 1) { co.x += dx / d * 6; co.y += dy / d * 6; } }
+    if (L.modNew && ++L.modNew.t > 200) L.modNew = null;
+  }
+  function modIcon(kind, x, y, s = 1) {   // kleine Bilder der Module
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    if (kind === 'knappe') { ctx.rotate(-0.7); ctx.fillStyle = '#6b4a2b'; ctx.fillRect(-8, -1.6, 5, 3.2); ctx.fillStyle = '#ffd23f'; ctx.fillRect(-3.5, -4, 2, 8); poly('#e8eef7', -1.5, -2.5, 9, 0, -1.5, 2.5); }
+    else if (kind === 'papagei') { ctx.strokeStyle = '#e8402e'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, -1, 5.5, Math.PI, 0, true); ctx.stroke(); ctx.fillStyle = '#c9d1dc'; ctx.fillRect(-7.5, -3, 4, 4); ctx.fillRect(3.5, -3, 4, 4); dot(0, -8, 1.6, '#ffd23f'); }
+    else if (kind === 'hund') { ctx.fillStyle = '#ff7b2b'; ctx.beginPath(); for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, r = k % 2 ? 4.5 : 8.5; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.fill(); dot(0, 0, 3.5, '#8a93a6'); }
+    else if (kind === 'roboter') { rr(-7, -4, 10, 8, 2, '#6a7286'); ctx.fillStyle = '#3a3e46'; ctx.fillRect(3, -2, 6, 3); dot(-2, 0, 1.8, frame % 30 < 15 ? '#ff4d6d' : '#ffd23f'); }
+    ctx.restore();
+  }
+  const MOD_LIST = [['knappe', 'DOLCH-GURT', '#c9d1dc'], ['papagei', 'MÜNZ-MAGNET', '#ffd23f'], ['hund', 'STACHEL-PANZER', '#ff7b2b'], ['roboter', 'SCHULTER-LASER', '#ff4d6d']];
+  function drawModsOnHero() {   // Module sieht man an der Rüstung des Helden
+    const p = P, F = run.friends || {}, M = L.mod || {}; if (!p || p.dead) return;
+    const cx = p.x + p.w / 2, ride = p.mounted ? 15 : 0;
+    if (F.roboter) { ctx.save(); ctx.translate(cx - p.facing * 6, p.y - 4 - ride); rr(-5, -3, 10, 7, 2, '#6a7286'); ctx.rotate(M.flash > 0 ? M.aim : p.facing > 0 ? 0 : Math.PI);
+      ctx.fillStyle = '#3a3e46'; ctx.fillRect(2, -1.5, 9, 3); if (M.flash > 0) { ctx.save(); ctx.shadowColor = '#ff4d6d'; ctx.shadowBlur = 10; dot(12, 0, 3, '#ff4d6d'); ctx.restore(); } ctx.restore();
+      dot(cx - p.facing * 6, p.y - 3 - ride, 1.5, frame % 30 < 15 ? '#ff4d6d' : '#ffd23f'); }
+    if (F.hund && M.fx > 0) { ctx.save(); ctx.globalAlpha = M.fx / 14; ctx.strokeStyle = '#ff7b2b'; ctx.lineWidth = 3; const r = 30 + (14 - M.fx) * 2.5;
+      ctx.beginPath(); for (let k = 0; k <= 24; k++) { const a = k / 24 * Math.PI * 2, rr2 = k % 2 ? r : r + 7; ctx.lineTo(cx + Math.cos(a) * rr2, p.y + p.h / 2 + Math.sin(a) * rr2); } ctx.stroke(); ctx.restore(); }
+  }
   function updateFriends() {
+    updateMods();
     const p = P, cx = p.x + p.w / 2;
     if (L.squire) {   // Knappe wirft Dolche
       const s = L.squire; follow(s, 44, 0.09);
@@ -1596,10 +1635,7 @@
     burst(cx, by - 30, '#ffd23f', 24); sparkle(cx, by - 30, '#ffffff'); ring(cx, by - 30, '#ffd23f');
     L.rescueMsg = { name: info.name, text: info.text, life: 240 };
     if (c.kind === 'pferd') P.mounted = true;
-    if (c.kind === 'knappe') L.squire = { x: cx, y: by, facing: -1, walk: 0, cd: 90, throwT: 0 };
-    if (c.kind === 'papagei') L.parrot = { x: cx, y: by - 30, state: 'back', target: null, cd: 100, t: 0, facing: -1 };
-    if (c.kind === 'roboter') L.robot = { x: cx, y: by - 30, cd: 60, t: 0, facing: -1, shootT: 0 };
-    if (c.kind === 'hund') L.falcon = { x: cx, y: by, state: 'back', target: null, cd: 120, t: 0, facing: -1, walk: 0 };
+    if (info.mod) { L.modNew = { kind: c.kind, t: 0 }; L.rescueMsg.head = 'RÜSTUNGS-MODUL GEFUNDEN!'; SFX.clang(); }
     if (c.kind === 'prinzessin') { L.princess = { x: cx, y: by, facing: -1, walk: 0 }; for (let k = 0; k < 6; k++) L.particles.push({ x: cx + rand(-20, 20), y: by - 40, vx: rand(-0.6, 0.6), vy: rand(-1.6, -0.6), life: 60, max: 60, size: 6, color: '#ff4d6d', g: 0 }); }
   }
 
@@ -3566,6 +3602,16 @@
   }
   function drawCage(c) {
     const x = c.x, y = c.y, w = c.w, h = c.h, cx = x + w / 2, by = y + h;
+    if (['knappe', 'papagei', 'hund', 'roboter'].includes(c.kind)) {   // Rüstungs-Modul in einer Schatztruhe
+      const bob = c.open ? 0 : Math.sin(frame * 0.08) * 2;
+      ctx.save(); const gl = ctx.createRadialGradient(cx, by - 30, 4, cx, by - 30, 60); gl.addColorStop(0, 'rgba(255,214,90,.45)'); gl.addColorStop(1, 'rgba(255,214,90,0)'); ctx.fillStyle = gl; ctx.fillRect(cx - 60, by - 90, 120, 100); ctx.restore();
+      rr(cx - 26, by - 26, 52, 26, 4, '#7a4a20'); ctx.fillStyle = '#ffd23f'; ctx.fillRect(cx - 26, by - 16, 52, 3); ctx.fillRect(cx - 3, by - 20, 6, 8);
+      if (!c.open) { rr(cx - 28, by - 40 + bob, 56, 16, 6, '#8a5a2b'); ctx.fillStyle = '#ffd23f'; ctx.fillRect(cx - 28, by - 30 + bob, 56, 3);
+        modIcon(c.kind, cx, by - 58 + bob * 2, 1.6);
+        if (frame % 150 < 90) outlined('RÜSTUNGS-MODUL', cx, by - 84, 12, '#ffd23f', 1, 'center', UIF); }
+      else { ctx.save(); ctx.translate(cx - 28, by - 26); ctx.rotate(-1.9); rr(0, -16, 56, 16, 6, '#8a5a2b'); ctx.restore(); }
+      return;
+    }
     if (!c.open) drawPrisoner(c.kind, cx, by - 7);
     ctx.fillStyle = '#5a3a1f'; ctx.fillRect(x - 4, by - 8, w + 8, 8); ctx.fillStyle = '#7a5230'; ctx.fillRect(x - 4, by - 8, w + 8, 3);
     if (!c.open) {
@@ -6330,6 +6376,7 @@
     }
     if (L.falcon) drawDog(L.falcon.x, L.falcon.y, L.falcon.facing, L.falcon.walk, L.falcon.leap || 0);
     if (L.robot) drawRobot(L.robot.x, L.robot.y, L.robot.facing, L.robot.t, L.era, 1, L.robot.shootT);
+    drawModsOnHero();
     drawCreator();
     if (p.pw.U > 0) {
       const a = p.pw.U < 120 && Math.floor(p.pw.U / 6) % 2 ? 0.25 : 0.55;
@@ -6435,8 +6482,14 @@
       armorIcon(run.armor, 34, ay + 14, 0.75);
       outlined(ar.name, 54, ay + 15, 13, ar.color, 1, 'left', UIF);
     }
+    const mods = MOD_LIST.filter((m) => run.friends && run.friends[m[0]]), my0 = (nw > 1 ? 136 : 124) + (run.armor > 0 ? 32 : 0);
+    if (mods.length) {
+      ctx.fillStyle = 'rgba(20,14,30,.45)'; roundRect(ctx, 14, my0, 18 + mods.length * 30, 28, 10); ctx.fill();
+      mods.forEach((m, i) => { const nx = 31 + i * 30, nn = L.modNew && L.modNew.kind === m[0]; if (nn) { ctx.save(); ctx.shadowColor = m[2]; ctx.shadowBlur = 14; dot(nx, my0 + 14, 11, 'rgba(255,214,90,.35)'); ctx.restore(); }
+        modIcon(m[0], nx, my0 + 14, 1); });
+    }
     if (L.kid) {   // Kinder-Modus-Abzeichen mit Schnuller
-      const ky = (nw > 1 ? 136 : 124) + (run.armor > 0 ? 32 : 0);
+      const ky = my0 + (mods.length ? 32 : 0);
       ctx.fillStyle = 'rgba(216,74,138,.88)'; roundRect(ctx, 14, ky, 150, 24, 10); ctx.fill();
       dot(30, ky + 12, 6.5, '#ffffff'); dot(30, ky + 12, 3.5, '#ff9fd0'); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(38, ky + 12, 3.5, -1.2, 1.2); ctx.stroke();
       outlined('KINDER-MODUS', 48, ky + 12, 12, '#ffffff', 1, 'left', UIF);
@@ -6476,7 +6529,7 @@
     panel(W / 2 - 250, 330, 500, 64);
     outlined(`${sel > 0 ? '◀  ' : '    '}LEVEL ${sel + 1}: ${d.name}${sel < unlocked - 1 ? '  ▶' : '    '}`, W / 2, 352, 24, '#ffffff');
     const se = ERAS[d.era !== undefined ? d.era : ERA_OF_LEVEL(sel)], sn = starCount(starsOf(sel)), stTxt = `${'★'.repeat(sn)}${'☆'.repeat(3 - sn)}  ·  `;
-    outlined(stTxt + (d.boss ? `${d.end ? 'END-BOSS' : 'BOSS'}: ${(BOSS_SKINS[sel + 1] || BOSSES[d.boss]).name}${RESCUE[sel + 1] ? '  ·  BEFREIE ' + RESCUE[sel + 1].name : ''}` : (unlocked > 1 ? `${se.name}  ·  ← → Level  ·  ↑ ↓ 5 Level  (${unlocked} frei)` : `${se.name}  ·  weitere Level werden beim Spielen freigeschaltet`)), W / 2, 378, 14, d.boss ? '#ff4d6d' : se.color, 1, 'center', UIF);
+    outlined(stTxt + (d.boss ? `${d.end ? 'END-BOSS' : 'BOSS'}: ${(BOSS_SKINS[sel + 1] || BOSSES[d.boss]).name}${RESCUE[sel + 1] ? (RESCUE[sel + 1].mod ? '  ·  FINDE ' : '  ·  BEFREIE ') + RESCUE[sel + 1].name : ''}` : (unlocked > 1 ? `${se.name}  ·  ← → Level  ·  ↑ ↓ 5 Level  (${unlocked} frei)` : `${se.name}  ·  weitere Level werden beim Spielen freigeschaltet`)), W / 2, 378, 14, d.boss ? '#ff4d6d' : se.color, 1, 'center', UIF);
     const a = 0.6 + Math.sin(frame * 0.1) * 0.4;
     if (save) {
       ctx.save(); ctx.fillStyle = 'rgba(46,140,70,.9)'; roundRect(ctx, W / 2 - 250, 404, 500, 46, 16); ctx.fill(); ctx.strokeStyle = '#7CFF6B'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
@@ -6492,6 +6545,13 @@
       ctx.strokeStyle = k2 === 'hof' ? '#ffd23f' : '#5ef2ff'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
       outlined(k2 === 'hof' ? '★ HALL OF FAME (H)' : '⌨ CODE EINGEBEN (L)', b.x + b.w / 2, b.y + b.h / 2, 14, '#ffffff', 1, 'center', UIF);
     }
+    { const nb = notesButton(), seen = store.get('jr_notes', '') === PATCH_VER, pulse = 1 + Math.sin(frame * 0.18) * (seen ? 0.03 : 0.07), blink = seen || frame % 40 < 28;
+      ctx.save(); ctx.translate(nb.x + nb.w / 2, nb.y + nb.h / 2); ctx.scale(pulse, pulse); ctx.shadowColor = '#ff9f40'; ctx.shadowBlur = blink ? 22 : 6;
+      const g = ctx.createLinearGradient(0, -nb.h / 2, 0, nb.h / 2); g.addColorStop(0, blink ? '#ffb347' : '#c86a1a'); g.addColorStop(1, blink ? '#e8601a' : '#8a3a0a');
+      ctx.fillStyle = g; roundRect(ctx, -nb.w / 2, -nb.h / 2, nb.w, nb.h, 14); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#fff2c0'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
+      outlined('📜 PATCHNOTES (U)', nb.x + nb.w / 2, nb.y + nb.h / 2 - 6, 16, '#ffffff', 1, 'center', UIF);
+      outlined(`NEU IN VERSION ${PATCH_VER}`, nb.x + nb.w / 2, nb.y + nb.h / 2 + 12, 10, '#fff2c0', 1, 'center', UIF);
+      if (!seen) { ctx.save(); ctx.translate(nb.x + 6, nb.y + 4); ctx.rotate(-0.3); rr(-18, -9, 36, 18, 8, '#ff2b4d'); outlined('NEU', 0, 0, 11, '#ffffff', 1, 'center', UIF); ctx.restore(); } }
     if (!storeOK && !save) outlined('⚠ Dieser Browser speichert hier nicht – merk dir den Spielstand-Code aus dem Pause-Menü!', W / 2, 466, 13, '#ff9f40', 1, 'center', UIF);
     if (codeMsg) { panel(W / 2 - 290, 236, 580, 46); outlined(codeMsg.t, W / 2, 259, 17, codeMsg.bad ? '#ff4d6d' : '#7CFF6B', Math.min(1, codeMsg.life / 15), 'center', UIF); if (--codeMsg.life <= 0) codeMsg = null; }
     ctx.save(); ctx.translate(W / 2, 576); ctx.rotate(Math.sin(frame * 0.04) * 0.015);   // kleiner Spaß
@@ -6499,6 +6559,46 @@
     outlined('Copyright by D.Bröder Games Production Ltd.', W / 2, 593, 12, '#ffffff', 0.85, 'center', UIF);
   }
 
+  // ---------- Patchnotes: was ist neu in welcher Version
+  const PATCH_VER = '16.4';
+  const PATCHNOTES = [
+    ['16.4', '30.10.2026', ['Aufträge „Kristalle“ und „Kopfgeld“ entfernt – der Wettlauf gegen die Zeit bleibt', 'Zeitkristalle sind jetzt normale Münzen',
+      'Gefährten entfernt – ihre Fähigkeiten stecken jetzt in Rüstungs-Modulen:', '   Dolch-Gurt (Lv 220) · Münz-Magnet (Lv 345) · Stachel-Panzer (Lv 395) · Schulter-Laser (Lv 565)',
+      'Module liegen in goldenen Truhen hinter dem Boss und werden unter der Rüstung angezeigt', 'Daniel „The Creator“ wirft niemanden mehr in den Abgrund', 'Neu: diese Patchnotes!']],
+    ['16.3', '29.10.2026', ['Spielfeld füllt am PC das ganze Fenster, Vollbild mit V', 'Schärferes Bild in voller Bildschirmauflösung', 'Spielstand-Codes gelten nur noch auf dem eigenen Gerät',
+      'Oliver S. auf Platz 3 der Hall of Fame', 'Fehler behoben: der Held lief zu langsam']],
+    ['16.2', '29.10.2026', ['Flüssigeres Bild, besonders auf 120-Hz-Displays', 'Rundere Animationen: Held wippt, atmet und lehnt sich in den Lauf', 'Gegner wippen und werden bei Treffern gestaucht',
+      'Münzen fliegen in den Zähler, Herzen hüpfen, Punkte zählen hoch']],
+    ['16.0', '29.10.2026', ['5 neue Zeitalter: Eiszeit, Griechen, Renaissance, Kölner Karneval, Retro-Arcade', '625 Level, 75 Bosse, 75 Waffen',
+      'End-Boss am Ende jedes Zeitalters, alte Bosse in der Königsform mit Krone', 'Neue Reittiere: Mammut, Wollnashorn, Kamel, Pegasus, Flugapparat, Funkenpferd, Pixelpferd',
+      'Grafik-Paket: Licht, Schatten, Gras im Wind, Rauch und Funken']],
+    ['15.0', '28.10.2026', ['Waffen leveln (Stufe 1–3)', '3 Sterne pro Level', 'Kinder-Modus nach 10 Toden (Daniel bietet ihn an)']],
+    ['14.0', '28.10.2026', ['Bosse mit Überraschungen, Finten und Phase 3 (RASEND)', 'Daniel macht sich bei jedem Tod über dich lustig', 'Waffenkammer: Lieblingswaffe vor jedem Level', 'Zeitstrahl nach jedem Level']],
+  ];
+  let notesTop = 0;
+  function notesButton() { return { x: W - 196, y: 58, w: 184, h: 46 }; }
+  function notesLines() { const out = []; for (const [v, d, items] of PATCHNOTES) { out.push(['h', `VERSION ${v}`, d]); for (const it of items) out.push(['i', it]); out.push(['s']); } return out; }
+  function drawNotes() {
+    if (!L) loadLevel(0);
+    cam = (frame * 1.2) % (L.w - W);
+    drawBackground(); ctx.drawImage(tileLayer, Math.round(cam), 0, W, H, 0, 0, W, H);
+    ctx.fillStyle = 'rgba(12,8,24,.86)'; ctx.fillRect(0, 0, W, H);
+    outlined('PATCHNOTES', W / 2, 54, 46, '#ff9f40');
+    outlined('Was ist neu in K.I.T.S.?', W / 2, 90, 15, '#d8e8ff', 1, 'center', UIF);
+    const lines = notesLines(), rows = 17, x0 = W / 2 - 330;
+    notesTop = clamp(notesTop, 0, Math.max(0, lines.length - rows));
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 110, W, 410); ctx.clip();
+    let y = 128;
+    for (const ln of lines.slice(notesTop, notesTop + rows)) {
+      if (ln[0] === 'h') { const cur = ln[1].endsWith(PATCH_VER); ctx.save(); ctx.fillStyle = cur ? 'rgba(255,159,64,.25)' : 'rgba(255,255,255,.08)'; roundRect(ctx, x0 - 10, y - 13, 680, 26, 9); ctx.fill(); ctx.restore();
+        outlined(ln[1] + (cur ? '  ·  NEU' : ''), x0, y, 18, cur ? '#ff9f40' : '#ffd23f', 1, 'left'); outlined(ln[2], x0 + 660, y, 13, '#9aa3b8', 1, 'right', UIF); }
+      else if (ln[0] === 'i') outlined((ln[1].startsWith('   ') ? '' : '•  ') + ln[1].trim(), x0 + (ln[1].startsWith('   ') ? 30 : 12), y, 14, '#ffffff', 1, 'left', UIF);
+      y += 24;
+    }
+    ctx.restore();
+    if (lines.length > rows) outlined(`${notesTop > 0 ? '▲ ' : ''}↑ ↓ / Mausrad: blättern${notesTop + rows < lines.length ? ' ▼' : ''}`, W / 2, 534, 13, '#9aa3b8', 1, 'center', UIF);
+    outlined('ENTER / U / TIPPEN: zurück', W / 2, 566, 18, '#ffd23f', 0.6 + Math.sin(frame * 0.1) * 0.4);
+  }
   let hof = store.get('jr_hof', []);   // [{ name, score, time, date }]
   const HOF_FIRST = { name: 'Benjamin R.', title: 'der erste Retter von Zuhal' };
   function addToHof() {
@@ -6622,6 +6722,7 @@
     if (scene === 'title') { drawTitle(); return; }
     if (scene === 'shop') { drawShop(); if (screenMsg) { outlined(screenMsg.t, W / 2, 410, 20, '#ffffff', Math.min(1, screenMsg.life / 15)); if (--screenMsg.life <= 0) screenMsg = null; } return; }
     if (scene === 'hof') { drawHof(); return; }
+    if (scene === 'notes') { drawNotes(); return; }
     if (scene === 'olph' && MG) { drawOlphScene(); return; }
     if (scene === 'olphEnd') { drawOlphEnd(); return; }
     ctx.save();
@@ -6659,7 +6760,7 @@
         if (L.task) outlined(taskText(), W / 2, 360, 15, '#ffd23f', a, 'center', UIF);
         outlined(`LEVEL ${levelIndex + 1} / ${LEVELS.length}`, W / 2, 240, 30, '#ffd23f', a);
         outlined(L.def.name, W / 2, 290, 50, '#ffffff', a);
-        if (L.def.boss) outlined((L.def.end ? 'END-BOSS-LEVEL' : 'BOSS-LEVEL') + (RESCUE[levelIndex + 1] ? `  ·  BEFREIE ${RESCUE[levelIndex + 1].name}` : ''), W / 2, 332, 16, '#ff4d6d', a);
+        if (L.def.boss) outlined((L.def.end ? 'END-BOSS-LEVEL' : 'BOSS-LEVEL') + (RESCUE[levelIndex + 1] ? `  ·  ${RESCUE[levelIndex + 1].mod ? 'FINDE' : 'BEFREIE'} ${RESCUE[levelIndex + 1].name}` : ''), W / 2, 332, 16, '#ff4d6d', a);
         else if (L.def.jagd) outlined('VERFOLGUNGSJAGD – LAUF SO SCHNELL DU KANNST!', W / 2, 332, 16, '#ff4d6d', a, 'center', UIF);
         else if (L.def.dunkel) outlined('DUNKEL – NUR DEIN LICHT ZEIGT DEN WEG', W / 2, 332, 16, '#d8e8ff', a, 'center', UIF);
         else if (L.def.wasser) outlined('UNTER WASSER – DU SCHWEBST UND SPRINGST HOCH', W / 2, 332, 16, '#9fe8ff', a, 'center', UIF);
@@ -6714,7 +6815,7 @@
       panel(W / 2 - 280, 40, 560, 370);
       outlined('DU HAST ES GESCHAFFT!', W / 2, 84, 36, '#ffd23f');
       outlined('Prinzessin Zuhal von Thailand ist gerettet!', W / 2, 124, 22, '#ffffff', 1, 'center', UIF);
-      outlined(`Durch alle ${ERA_COUNT} Zeitalter – mit Reittier, Knappe, Papagei, Hund und R0-B1`, W / 2, 152, 15, '#d8e8ff', 1, 'center', UIF);
+      outlined(`Durch alle ${ERA_COUNT} Zeitalter – mit Reittier und voll ausgebauter Rüstung`, W / 2, 152, 15, '#d8e8ff', 1, 'center', UIF);
       const s = Math.floor(run.time / 60);
       [['Score', String(run.score).padStart(6, '0')], ['Münzen gesammelt', run.coinsTotal || run.coins], ['Gegner', run.kills], ['Gesamtzeit', `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`]]
         .forEach(([k2, v], i) => { outlined(k2, W / 2 - 190, 196 + i * 34, 20, '#d8e8ff', 1, 'left', UIF); outlined(String(v), W / 2 + 190, 196 + i * 34, 22, '#ffffff', 1, 'right'); });
@@ -6726,10 +6827,6 @@
       drawMount(W / 2 - 40, gy, 1, 0, true, false, 1.3, 1, mountKind(ERA_COUNT - 1));
       drawHero(W / 2 - 40, gy - 20, 1, 1.3, 1.3, 0, false, 0, 1, frame, -1, run.weapon, { armor: run.armor });
       drawSaddle(W / 2 - 40, gy, 1, 1.3, mountKind(ERA_COUNT - 1));
-      drawSquireAt(W / 2 - 150, gy, 1, 0, frame % 120 < 14 ? (frame % 120) / 14 : -1, ERA_COUNT - 1, 0.8);
-      drawDog(W / 2 + 160, gy, -1, frame * 0.1, 0, ERA_COUNT - 1);
-      drawParrot(W / 2 - 40, gy - 150 + Math.sin(frame * 0.08) * 6, 1, frame, ERA_COUNT - 1, 1.2);
-      drawRobot(W / 2 + 210, gy - 60 + Math.sin(frame * 0.06) * 5, -1, frame, ERA_COUNT - 1, 1.2);
       drawPrincess(W / 2 + 70, gy, -1, frame, 1.25);
 
       for (let k = 0; k < 3; k++) { const hy = 470 - ((frame * 0.6 + k * 40) % 120); heart(W / 2 + 18 + Math.sin(frame * 0.05 + k) * 10, hy, 7, `rgba(255,77,109,${Math.min(1, (hy - 350) / 60)})`); }
@@ -6770,7 +6867,7 @@
     if (scene === 'intro') { updatePlatforms(); updateEnemies(); if (sceneT > 110) { scene = 'play'; music.on = true; applyBought(); } }
     else if (scene === 'play' && L.creator) updateCreator();
     else if (scene === 'play') {
-      L.time++; run.time++; creatorCheck();
+      L.time++; run.time++;
       updatePatrick(); updatePlatforms(); updatePlayer(); updateFriends(); updateHazards(); updateEnemies(); updateBoss(); if (L.boss && L.boss.elite && frame % 3 === 0) updateBoss(); updateBossShots(); if (scene === 'play') checkHits(); if (scene === 'play') updateTask();
       let target = clamp(P.x - W * 0.4 + P.facing * 60, camMin(), L.w - W);
       if (L.arena && L.arena.locked) target = clamp((L.arena.gl + L.arena.gr + 1) * T / 2 - W / 2, 0, L.w - W);   // Kamera bleibt in der Arena (mittig)
@@ -6949,6 +7046,7 @@
     if (sv.level + 1 > unlocked) { unlocked = sv.level + 1; store.set('jr_unlocked', unlocked); }
     sel = sv.level; audioInit(); continueGame(); SFX.check();
   }
+  window.addEventListener('wheel', (e) => { if (scene === 'notes') { notesTop += e.deltaY > 0 ? 2 : -2; e.preventDefault(); } }, { passive: false });
   window.addEventListener('pagehide', () => { if (L && run && P && (scene === 'play' || scene === 'intro') && !P.dead) saveGame(levelIndex, L.cpIndex, false); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && L && run && P && (scene === 'play' || scene === 'intro') && !P.dead) saveGame(levelIndex, L.cpIndex, false); });
   function saveGame(level, cp, shop) {
@@ -7864,7 +7962,7 @@
       else { scene = 'victory'; sceneT = 0; run.newBest = run.score > best; if (run.newBest) { best = run.score; store.set('jr_best', best); } SFX.clear(); save = null; store.set('jr_save', null); }
     }
     else if (scene === 'victory') { scene = 'olphEnd'; sceneT = 0; SFX.roar(); }   // zum Schluss lacht Olphilver – Fortsetzung folgt
-    else if (scene === 'hof') { scene = 'title'; L = null; sel = unlocked - 1; }
+    else if (scene === 'hof' || scene === 'notes') { scene = 'title'; L = null; sel = unlocked - 1; }
     else if (paused) paused = false;
   }
 
@@ -7931,6 +8029,9 @@
       return;
     }
     if (scene === 'hof') { if (['Enter', 'Escape', ' ', 'h', 'H', 'x', 'X'].includes(k)) { e.preventDefault(); scene = 'title'; L = null; } return; }
+    if (scene === 'notes') { if (['ArrowUp', 'w', 'W'].includes(k)) { e.preventDefault(); notesTop--; } else if (['ArrowDown', 's', 'S'].includes(k)) { e.preventDefault(); notesTop++; }
+      else if (['Enter', 'Escape', ' ', 'u', 'U', 'x', 'X'].includes(k)) { e.preventDefault(); scene = 'title'; L = null; } return; }
+    if (scene === 'title' && (k === 'u' || k === 'U')) { scene = 'notes'; notesTop = 0; store.set('jr_notes', PATCH_VER); audioInit(); SFX.coin(); return; }
     if (scene === 'title' && (k === 'h' || k === 'H')) { scene = 'hof'; audioInit(); SFX.coin(); return; }
     if (scene === 'title' && (k === 'l' || k === 'L')) { enterCode(); return; }
     if (paused && (k === 'k' || k === 'K')) { copyCode(); return; }
@@ -8003,11 +8104,13 @@
       return;
     }
     if (scene === 'hof') { scene = 'title'; L = null; return; }
+    if (scene === 'notes') { if (cy < 140 && notesTop > 0) notesTop -= 4; else if (cy > 500 && cy < 545) notesTop += 4; else { scene = 'title'; L = null; } return; }
     if (paused && cy >= H / 2 + 90 && cy <= H / 2 + 130) { copyCode(); return; }
     if (scene === 'title') {
       audioInit();
       const tb = titleButtons(), inB = (b) => cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h;
       if (inB(tb.hof)) { scene = 'hof'; SFX.coin(); return; }
+      if (inB(notesButton())) { scene = 'notes'; notesTop = 0; store.set('jr_notes', PATCH_VER); audioInit(); SFX.coin(); return; }
       if (inB(tb.code)) { enterCode(); return; }
       if (save && cy >= 330 && cy <= 396) { startLevel(sel, false); SFX.check(); return; }   // Level-Feld antippen = gewähltes Level
       onConfirm(); return;
